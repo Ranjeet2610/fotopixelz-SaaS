@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  EDITOR
+}
+
+enum OrderStatus {
+  UPLOADED
+  QUEUED
+  AI_PROCESSING
+  EDITOR_ASSIGNED
+  QC_REVIEW
+  COMPLETED
+  REVISION
+}
+
+model User {
+  id       String   @id @default(cuid())
+  name     String?
+  email    String   @unique
+  password String?
+  role     UserRole @default(USER)
+
+  credits Int @default(0)
+
+  orders        Order[]
+  uploads       Upload[]
+  subscriptions Subscription[]
+  revisions     Revision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  status OrderStatus @default(UPLOADED)
+
+  totalCredits Int @default(0)
+
+  assignedEditor String?
+
+  uploads   Upload[]
+  revisions Revision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Upload {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  originalUrl String
+  previewUrl  String?
+  finalUrl    String?
+
+  aiProcessed Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Subscription {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  plan    String
+  credits Int
+
+  status String
+
+  renewalDate DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Revision {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  comment String
+
+  status String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

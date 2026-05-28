@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  '@clerk/shared': false
+  '@prisma/engines': false
+  esbuild: false
+  msgpackr-extract: false
+  msw: set this to true or false
+  prisma: false
+  sharp: true
+  unrs-resolver: true
