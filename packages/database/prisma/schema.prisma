@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  QA
+  CLIENT
+}
+
+enum OrderStatus {
+  CREATED
+  UPLOADED
+  AI_PROCESSING
+  AI_PREVIEW_READY
+  EDITING
+  QA_PENDING
+  APPROVED
+  DELIVERED
+  COMPLETED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  password  String
+
+  role      Role     @default(CLIENT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+
+  title       String
+
+  status      OrderStatus @default(CREATED)
+
+  totalAmount Float       @default(0)
+
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+
+  uploads     Upload[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Upload {
+  id           String   @id @default(cuid())
+
+  originalUrl  String
+
+  processedUrl String?
+
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id])
+
+  createdAt    DateTime @default(now())
+}
+
+model AIJob {
+  id        String   @id @default(cuid())
+
+  provider  String
+
+  status    String
+
+  inputUrl  String
+
+  outputUrl String?
+
+  createdAt DateTime @default(now())
+}
