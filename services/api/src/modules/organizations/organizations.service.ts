@@ -51,13 +51,9 @@ export async function listOrganizations(context: RequestContext, query: ListOrga
   return prisma.organization.findMany({
     where: {
       ...(query.includeInactive ? {} : { isActive: true }),
-      ...(isAdmin(context.role)
-        ? {}
-        : {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          })
+      memberships: {
+        some: { userId: context.userId }
+      }
     },
     include: organizationInclude,
     orderBy: { createdAt: 'desc' }
@@ -68,13 +64,9 @@ export async function getOrganization(context: RequestContext, organizationId: s
   const organization = await prisma.organization.findFirst({
     where: {
       id: organizationId,
-      ...(isAdmin(context.role)
-        ? {}
-        : {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          })
+      memberships: {
+        some: { userId: context.userId }
+      }
     },
     include: organizationInclude
   })
@@ -86,11 +78,25 @@ export async function getOrganization(context: RequestContext, organizationId: s
   return organization
 }
 
-export async function createOrganization(input: CreateOrganizationInput) {
+export async function createOrganization(context: RequestContext, input: CreateOrganizationInput) {
   try {
-    return await prisma.organization.create({
-      data: input,
-      include: organizationInclude
+    return await prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.create({
+        data: input
+      })
+
+      await tx.membership.create({
+        data: {
+          organizationId: organization.id,
+          userId: context.userId,
+          role: 'ADMIN'
+        }
+      })
+
+      return tx.organization.findUniqueOrThrow({
+        where: { id: organization.id },
+        include: organizationInclude
+      })
     })
   } catch (error) {
     const message = uniqueConstraintMessage(error, 'Organization slug already exists')
@@ -101,8 +107,12 @@ export async function createOrganization(input: CreateOrganizationInput) {
   }
 }
 
-export async function updateOrganization(organizationId: string, input: UpdateOrganizationInput) {
-  await ensureOrganizationExists(organizationId)
+export async function updateOrganization(
+  context: RequestContext,
+  organizationId: string,
+  input: UpdateOrganizationInput
+) {
+  await ensureOrganizationAdminAccess(context, organizationId)
 
   try {
     return await prisma.organization.update({
@@ -119,8 +129,8 @@ export async function updateOrganization(organizationId: string, input: UpdateOr
   }
 }
 
-export async function deleteOrganization(organizationId: string) {
-  await ensureOrganizationExists(organizationId)
+export async function deleteOrganization(context: RequestContext, organizationId: string) {
+  await ensureOrganizationAdminAccess(context, organizationId)
 
   return prisma.organization.update({
     where: { id: organizationId },
@@ -129,8 +139,8 @@ export async function deleteOrganization(organizationId: string) {
   })
 }
 
-export async function listMemberships(organizationId: string) {
-  await ensureOrganizationExists(organizationId)
+export async function listMemberships(context: RequestContext, organizationId: string) {
+  await ensureOrganizationAdminAccess(context, organizationId)
 
   return prisma.membership.findMany({
     where: { organizationId },
@@ -157,8 +167,12 @@ export async function listMemberships(organizationId: string) {
   })
 }
 
-export async function createMembership(organizationId: string, input: CreateMembershipInput) {
-  await ensureOrganizationExists(organizationId)
+export async function createMembership(
+  context: RequestContext,
+  organizationId: string,
+  input: CreateMembershipInput
+) {
+  await ensureOrganizationAdminAccess(context, organizationId)
   await ensureUserExists(input.userId)
 
   try {
@@ -190,10 +204,12 @@ export async function createMembership(organizationId: string, input: CreateMemb
 }
 
 export async function updateMembership(
+  context: RequestContext,
   organizationId: string,
   membershipId: string,
   input: UpdateMembershipInput
 ) {
+  await ensureOrganizationAdminAccess(context, organizationId)
   await ensureMembershipExists(organizationId, membershipId)
 
   return prisma.membership.update({
@@ -213,7 +229,12 @@ export async function updateMembership(
   })
 }
 
-export async function deleteMembership(organizationId: string, membershipId: string) {
+export async function deleteMembership(
+  context: RequestContext,
+  organizationId: string,
+  membershipId: string
+) {
+  await ensureOrganizationAdminAccess(context, organizationId)
   await ensureMembershipExists(organizationId, membershipId)
 
   await prisma.membership.delete({
@@ -251,5 +272,25 @@ async function ensureMembershipExists(organizationId: string, membershipId: stri
 
   if (!membership) {
     throw new AppError(404, 'Membership not found')
+  }
+}
+
+async function ensureOrganizationAdminAccess(context: RequestContext, organizationId: string) {
+  const membership = await prisma.membership.findFirst({
+    where: {
+      organizationId,
+      userId: context.userId
+    },
+    select: {
+      role: true
+    }
+  })
+
+  if (!membership) {
+    throw new AppError(404, 'Organization not found')
+  }
+
+  if (!(membership.role === 'ADMIN' || membership.role === 'SUPER_ADMIN' || isAdmin(context.role))) {
+    throw new AppError(403, 'Forbidden')
   }
 }

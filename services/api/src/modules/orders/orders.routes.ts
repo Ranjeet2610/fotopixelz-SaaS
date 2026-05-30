@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { requireAdmin } from '../../common/middleware/admin'
 import { requireAuth } from '../../common/middleware/auth'
 import {
   createOrderHandler,
@@ -18,7 +17,7 @@ ordersRouter.use(requireAuth)
 ordersRouter.get('/', listOrdersHandler)
 ordersRouter.post('/', createOrderHandler)
 ordersRouter.get('/:orderId', getOrderHandler)
-ordersRouter.patch('/:orderId', requireAdmin, updateOrderHandler)
-ordersRouter.delete('/:orderId', requireAdmin, deleteOrderHandler)
+ordersRouter.patch('/:orderId', updateOrderHandler)
+ordersRouter.delete('/:orderId', deleteOrderHandler)
 
 export default ordersRouter

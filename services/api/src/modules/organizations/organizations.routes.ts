@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { requireAdmin } from "../../common/middleware/admin";
 import { requireAuth } from "../../common/middleware/auth";
 import {
   createMembershipHandler,
@@ -24,35 +23,17 @@ organizationsRouter.get("/", listOrganizationsHandler);
 organizationsRouter.post("/", createOrganizationHandler);
 
 organizationsRouter.get("/:organizationId", getOrganizationHandler);
-organizationsRouter.patch(
-  "/:organizationId",
-  requireAdmin,
-  updateOrganizationHandler,
-);
-organizationsRouter.delete(
-  "/:organizationId",
-  requireAdmin,
-  deleteOrganizationHandler,
-);
+organizationsRouter.patch("/:organizationId", updateOrganizationHandler);
+organizationsRouter.delete("/:organizationId", deleteOrganizationHandler);
 
-organizationsRouter.get(
-  "/:organizationId/memberships",
-  requireAdmin,
-  listMembershipsHandler,
-);
-organizationsRouter.post(
-  "/:organizationId/memberships",
-  requireAdmin,
-  createMembershipHandler,
-);
+organizationsRouter.get("/:organizationId/memberships", listMembershipsHandler);
+organizationsRouter.post("/:organizationId/memberships", createMembershipHandler);
 organizationsRouter.patch(
   "/:organizationId/memberships/:membershipId",
-  requireAdmin,
   updateMembershipHandler,
 );
 organizationsRouter.delete(
   "/:organizationId/memberships/:membershipId",
-  requireAdmin,
   deleteMembershipHandler,
 );
 

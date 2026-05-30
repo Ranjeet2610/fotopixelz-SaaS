@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { requireAdmin } from '../../common/middleware/admin'
 import { requireAuth } from '../../common/middleware/auth'
 import {
   createUploadHandler,
@@ -18,7 +17,7 @@ uploadsRouter.use(requireAuth)
 uploadsRouter.get('/', listUploadsHandler)
 uploadsRouter.post('/', createUploadHandler)
 uploadsRouter.get('/:uploadId', getUploadHandler)
-uploadsRouter.patch('/:uploadId', requireAdmin, updateUploadHandler)
-uploadsRouter.delete('/:uploadId', requireAdmin, deleteUploadHandler)
+uploadsRouter.patch('/:uploadId', updateUploadHandler)
+uploadsRouter.delete('/:uploadId', deleteUploadHandler)
 
 export default uploadsRouter

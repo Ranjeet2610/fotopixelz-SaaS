@@ -67,13 +67,18 @@ export async function getOrganizationHandler(req: Request, res: Response) {
 }
 
 export async function createOrganizationHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const parsed = createOrganizationSchema.safeParse(req.body)
   if (!parsed.success) {
     return res.status(400).json({ success: false, errors: parsed.error.flatten() })
   }
 
   try {
-    const organization = await createOrganization(parsed.data)
+    const organization = await createOrganization(context, parsed.data)
     return res.status(201).json({ success: true, data: organization })
   } catch (error) {
     return sendError(res, error)
@@ -81,6 +86,11 @@ export async function createOrganizationHandler(req: Request, res: Response) {
 }
 
 export async function updateOrganizationHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = organizationIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
@@ -92,7 +102,7 @@ export async function updateOrganizationHandler(req: Request, res: Response) {
   }
 
   try {
-    const organization = await updateOrganization(params.data.organizationId, parsed.data)
+    const organization = await updateOrganization(context, params.data.organizationId, parsed.data)
     return res.status(200).json({ success: true, data: organization })
   } catch (error) {
     return sendError(res, error)
@@ -100,13 +110,18 @@ export async function updateOrganizationHandler(req: Request, res: Response) {
 }
 
 export async function deleteOrganizationHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = organizationIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
   }
 
   try {
-    const organization = await deleteOrganization(params.data.organizationId)
+    const organization = await deleteOrganization(context, params.data.organizationId)
     return res.status(200).json({ success: true, data: organization })
   } catch (error) {
     return sendError(res, error)
@@ -114,13 +129,18 @@ export async function deleteOrganizationHandler(req: Request, res: Response) {
 }
 
 export async function listMembershipsHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = organizationIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
   }
 
   try {
-    const memberships = await listMemberships(params.data.organizationId)
+    const memberships = await listMemberships(context, params.data.organizationId)
     return res.status(200).json({ success: true, data: memberships })
   } catch (error) {
     return sendError(res, error)
@@ -128,6 +148,11 @@ export async function listMembershipsHandler(req: Request, res: Response) {
 }
 
 export async function createMembershipHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = organizationIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
@@ -139,7 +164,7 @@ export async function createMembershipHandler(req: Request, res: Response) {
   }
 
   try {
-    const membership = await createMembership(params.data.organizationId, parsed.data)
+    const membership = await createMembership(context, params.data.organizationId, parsed.data)
     return res.status(201).json({ success: true, data: membership })
   } catch (error) {
     return sendError(res, error)
@@ -147,6 +172,11 @@ export async function createMembershipHandler(req: Request, res: Response) {
 }
 
 export async function updateMembershipHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = membershipIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
@@ -159,6 +189,7 @@ export async function updateMembershipHandler(req: Request, res: Response) {
 
   try {
     const membership = await updateMembership(
+      context,
       params.data.organizationId,
       params.data.membershipId,
       parsed.data
@@ -170,13 +201,18 @@ export async function updateMembershipHandler(req: Request, res: Response) {
 }
 
 export async function deleteMembershipHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
   const params = membershipIdParamsSchema.safeParse(req.params)
   if (!params.success) {
     return res.status(400).json({ success: false, errors: params.error.flatten() })
   }
 
   try {
-    await deleteMembership(params.data.organizationId, params.data.membershipId)
+    await deleteMembership(context, params.data.organizationId, params.data.membershipId)
     return res.status(204).send()
   } catch (error) {
     return sendError(res, error)

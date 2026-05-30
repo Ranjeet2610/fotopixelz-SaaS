@@ -58,10 +58,6 @@ type NormalizedOrderItem = {
   notes?: string
 }
 
-function isAdmin(role: RequestContext['role']) {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN'
-}
-
 export function getOrdersStatus() {
   return { module: 'orders', status: 'ok' as const }
 }
@@ -71,20 +67,16 @@ export async function listOrders(context: RequestContext, query: ListOrdersQuery
     ...(query.organizationId ? { organizationId: query.organizationId } : {}),
     ...(query.status ? { status: query.status } : {}),
     ...(query.createdById ? { createdById: query.createdById } : {}),
-    ...(isAdmin(context.role)
-      ? {}
-      : {
-          OR: [
-            { createdById: context.userId },
-            {
-              organization: {
-                memberships: {
-                  some: { userId: context.userId }
-                }
-              }
-            }
-          ]
-        })
+    OR: [
+      { createdById: context.userId },
+      {
+        organization: {
+          memberships: {
+            some: { userId: context.userId }
+          }
+        }
+      }
+    ]
   }
 
   const skip = (query.page - 1) * query.limit
@@ -215,20 +207,16 @@ export async function deleteOrder(context: RequestContext, orderId: string) {
 function accessibleOrderWhere(context: RequestContext, orderId: string) {
   return {
     id: orderId,
-    ...(isAdmin(context.role)
-      ? {}
-      : {
-          OR: [
-            { createdById: context.userId },
-            {
-              organization: {
-                memberships: {
-                  some: { userId: context.userId }
-                }
-              }
-            }
-          ]
-        })
+    OR: [
+      { createdById: context.userId },
+      {
+        organization: {
+          memberships: {
+            some: { userId: context.userId }
+          }
+        }
+      }
+    ]
   }
 }
 
@@ -248,13 +236,9 @@ async function ensureActiveOrganizationAccess(context: RequestContext, organizat
     where: {
       id: organizationId,
       isActive: true,
-      ...(isAdmin(context.role)
-        ? {}
-        : {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          })
+      memberships: {
+        some: { userId: context.userId }
+      }
     },
     select: { id: true }
   })

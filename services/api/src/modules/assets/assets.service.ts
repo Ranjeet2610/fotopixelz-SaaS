@@ -31,10 +31,6 @@ const assetInclude = {
   }
 }
 
-function isAdmin(role: RequestContext['role']) {
-  return role === 'ADMIN' || role === 'SUPER_ADMIN'
-}
-
 function uniqueConstraintMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
     return fallback
@@ -50,22 +46,18 @@ export async function listAssets(context: RequestContext, query: ListAssetsQuery
   const where = {
     ...(query.orderId ? { orderId: query.orderId } : {}),
     ...(query.status ? { status: query.status } : {}),
-    ...(isAdmin(context.role)
-      ? {}
-      : {
-          order: {
-            OR: [
-              { createdById: context.userId },
-              {
-                organization: {
-                  memberships: {
-                    some: { userId: context.userId }
-                  }
-                }
-              }
-            ]
+    order: {
+      OR: [
+        { createdById: context.userId },
+        {
+          organization: {
+            memberships: {
+              some: { userId: context.userId }
+            }
           }
-        })
+        }
+      ]
+    }
   }
 
   const skip = (query.page - 1) * query.limit
@@ -213,22 +205,18 @@ export async function deleteAssetVersion(context: RequestContext, assetId: strin
 function accessibleAssetWhere(context: RequestContext, assetId: string) {
   return {
     id: assetId,
-    ...(isAdmin(context.role)
-      ? {}
-      : {
-          order: {
-            OR: [
-              { createdById: context.userId },
-              {
-                organization: {
-                  memberships: {
-                    some: { userId: context.userId }
-                  }
-                }
-              }
-            ]
+    order: {
+      OR: [
+        { createdById: context.userId },
+        {
+          organization: {
+            memberships: {
+              some: { userId: context.userId }
+            }
           }
-        })
+        }
+      ]
+    }
   }
 }
 
@@ -260,20 +248,16 @@ async function ensureOrderAccess(context: RequestContext, orderId: string) {
   const order = await prisma.order.findFirst({
     where: {
       id: orderId,
-      ...(isAdmin(context.role)
-        ? {}
-        : {
-            OR: [
-              { createdById: context.userId },
-              {
-                organization: {
-                  memberships: {
-                    some: { userId: context.userId }
-                  }
-                }
-              }
-            ]
-          })
+      OR: [
+        { createdById: context.userId },
+        {
+          organization: {
+            memberships: {
+              some: { userId: context.userId }
+            }
+          }
+        }
+      ]
     },
     select: { id: true }
   })
