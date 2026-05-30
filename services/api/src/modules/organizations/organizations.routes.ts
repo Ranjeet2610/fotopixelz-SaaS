@@ -1,6 +1,6 @@
-import { Router } from 'express'
-import { requireAdmin } from '../../common/middleware/admin'
-import { requireAuth } from '../../common/middleware/auth'
+import { Router } from "express";
+import { requireAdmin } from "../../common/middleware/admin";
+import { requireAuth } from "../../common/middleware/auth";
 import {
   createMembershipHandler,
   createOrganizationHandler,
@@ -11,31 +11,49 @@ import {
   listMembershipsHandler,
   listOrganizationsHandler,
   updateMembershipHandler,
-  updateOrganizationHandler
-} from './organizations.controller'
+  updateOrganizationHandler,
+} from "./organizations.controller";
 
-const organizationsRouter = Router()
+const organizationsRouter = Router();
 
-organizationsRouter.get('/health', getOrganizationsHealth)
+organizationsRouter.get("/health", getOrganizationsHealth);
 
-organizationsRouter.use(requireAuth)
-organizationsRouter.get('/', listOrganizationsHandler)
-organizationsRouter.post('/', requireAdmin, createOrganizationHandler)
-organizationsRouter.get('/:organizationId', getOrganizationHandler)
-organizationsRouter.patch('/:organizationId', requireAdmin, updateOrganizationHandler)
-organizationsRouter.delete('/:organizationId', requireAdmin, deleteOrganizationHandler)
+organizationsRouter.use(requireAuth);
 
-organizationsRouter.get('/:organizationId/memberships', requireAdmin, listMembershipsHandler)
-organizationsRouter.post('/:organizationId/memberships', requireAdmin, createMembershipHandler)
+organizationsRouter.get("/", listOrganizationsHandler);
+organizationsRouter.post("/", createOrganizationHandler);
+
+organizationsRouter.get("/:organizationId", getOrganizationHandler);
 organizationsRouter.patch(
-  '/:organizationId/memberships/:membershipId',
+  "/:organizationId",
   requireAdmin,
-  updateMembershipHandler
-)
+  updateOrganizationHandler,
+);
 organizationsRouter.delete(
-  '/:organizationId/memberships/:membershipId',
+  "/:organizationId",
   requireAdmin,
-  deleteMembershipHandler
-)
+  deleteOrganizationHandler,
+);
 
-export default organizationsRouter
+organizationsRouter.get(
+  "/:organizationId/memberships",
+  requireAdmin,
+  listMembershipsHandler,
+);
+organizationsRouter.post(
+  "/:organizationId/memberships",
+  requireAdmin,
+  createMembershipHandler,
+);
+organizationsRouter.patch(
+  "/:organizationId/memberships/:membershipId",
+  requireAdmin,
+  updateMembershipHandler,
+);
+organizationsRouter.delete(
+  "/:organizationId/memberships/:membershipId",
+  requireAdmin,
+  deleteMembershipHandler,
+);
+
+export default organizationsRouter;
