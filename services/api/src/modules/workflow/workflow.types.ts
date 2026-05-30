@@ -1,0 +1,2 @@
+export type workflowModuleStatus = 'placeholder'
+

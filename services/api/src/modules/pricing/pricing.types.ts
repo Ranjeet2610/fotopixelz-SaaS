@@ -1,0 +1,2 @@
+export type PricingModuleStatus = 'placeholder'
+

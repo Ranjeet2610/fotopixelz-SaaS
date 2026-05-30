@@ -2,14 +2,22 @@
   "name": "workers",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.ts",
   "scripts": {
-    "dev": "tsx index.ts"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"No lint config for workers yet\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3"
+  },
   "dependencies": {
     "bullmq": "^5.77.6",
     "dotenv": "^17.4.2",

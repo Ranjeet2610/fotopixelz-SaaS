@@ -1,0 +1,417 @@
+generator client {
+  provider = "prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CLIENT
+  EDITOR
+  QA
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum OrderStatus {
+  DRAFT
+  SUBMITTED
+  AI_PROCESSING
+  EDITOR_ASSIGNED
+  EDITING_IN_PROGRESS
+  QA_PENDING
+  QA_REJECTED
+  CLIENT_REVIEW
+  REVISION_REQUESTED
+  APPROVED
+  DELIVERED
+  COMPLETED
+  CANCELED
+}
+
+enum AssetStatus {
+  UPLOADED
+  PROCESSING
+  READY_FOR_EDITING
+  EDITED
+  QA_PENDING
+  READY_FOR_DELIVERY
+  DELIVERED
+  ARCHIVED
+}
+
+enum EditingJobStatus {
+  QUEUED
+  ASSIGNED
+  IN_PROGRESS
+  BLOCKED
+  QA_PENDING
+  DONE
+}
+
+enum AiJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum QAStatus {
+  PENDING
+  IN_REVIEW
+  PASSED
+  FAILED
+}
+
+enum RevisionStatus {
+  REQUESTED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum NotificationType {
+  ORDER
+  REVISION
+  PAYMENT
+  DELIVERY
+  SYSTEM
+}
+
+enum WorkflowEventType {
+  ORDER_CREATED
+  ASSET_UPLOADED
+  AI_JOB_STARTED
+  AI_JOB_COMPLETED
+  EDITOR_ASSIGNED
+  QA_SUBMITTED
+  REVISION_REQUESTED
+  PAYMENT_CONFIRMED
+  DELIVERY_SENT
+}
+
+model User {
+  id             String         @id @default(cuid())
+  name           String?
+  email          String         @unique
+  password       String
+  role           UserRole       @default(CLIENT)
+  isActive       Boolean        @default(true)
+
+  memberships    Membership[]
+  createdOrders  Order[]        @relation("OrderCreatedBy")
+  editingJobs    EditingJob[]   @relation("EditingJobEditor")
+  qaReviews      QAReview[]     @relation("QAReviewReviewer")
+  revisions      Revision[]     @relation("RevisionRequestedBy")
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  workflowEvents WorkflowEvent[] @relation("WorkflowEventActor")
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([role])
+}
+
+model Organization {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  isActive    Boolean       @default(true)
+
+  memberships Membership[]
+  orders      Order[]
+  services    Service[]
+  invoices    Invoice[]
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           UserRole     @default(CLIENT)
+
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, role])
+}
+
+model ServiceCategory {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+
+  services    Service[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Service {
+  id             String          @id @default(cuid())
+  categoryId     String
+  organizationId String?
+  name           String
+  slug           String          @unique
+  description    String?
+  basePrice      Float           @default(0)
+  isActive       Boolean         @default(true)
+
+  category       ServiceCategory @relation(fields: [categoryId], references: [id])
+  organization   Organization?   @relation(fields: [organizationId], references: [id])
+  orderItems     OrderItem[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([categoryId])
+}
+
+model Order {
+  id             String          @id @default(cuid())
+  organizationId String
+  createdById    String
+  title          String
+  status         OrderStatus     @default(DRAFT)
+  totalAmount    Float           @default(0)
+  currency       String          @default("USD")
+  dueAt          DateTime?
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  createdBy      User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
+  items          OrderItem[]
+  assets         Asset[]
+  revisions      Revision[]
+  payments       Payment[]
+  invoice        Invoice?
+  workflowEvents WorkflowEvent[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([organizationId, status])
+  @@index([createdById])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  serviceId   String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0)
+  notes       String?
+
+  order       Order    @relation(fields: [orderId], references: [id])
+  service     Service  @relation(fields: [serviceId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([serviceId])
+}
+
+model Asset {
+  id             String       @id @default(cuid())
+  orderId         String
+  fileName        String
+  originalUrl     String
+  status          AssetStatus  @default(UPLOADED)
+
+  order           Order        @relation(fields: [orderId], references: [id])
+  versions        AssetVersion[]
+  editingJobs     EditingJob[]
+  aiJobs          AiJob[]
+  qaReviews       QAReview[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orderId, status])
+}
+
+model AssetVersion {
+  id          String   @id @default(cuid())
+  assetId      String
+  version      Int      @default(1)
+  fileUrl      String
+  notes        String?
+
+  asset        Asset    @relation(fields: [assetId], references: [id])
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([assetId, version])
+}
+
+model EditingJob {
+  id           String           @id @default(cuid())
+  assetId       String
+  editorId      String?
+  status        EditingJobStatus @default(QUEUED)
+  instructions  String?
+
+  asset         Asset            @relation(fields: [assetId], references: [id])
+  editor        User?            @relation("EditingJobEditor", fields: [editorId], references: [id])
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([assetId, status])
+  @@index([editorId, status])
+}
+
+model AiJob {
+  id           String      @id @default(cuid())
+  assetId       String
+  provider      String
+  status        AiJobStatus @default(QUEUED)
+  inputUrl      String
+  outputUrl     String?
+  errorMessage  String?
+
+  asset         Asset       @relation(fields: [assetId], references: [id])
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([assetId, status])
+}
+
+model QAReview {
+  id            String    @id @default(cuid())
+  assetId        String
+  reviewerId     String?
+  status         QAStatus  @default(PENDING)
+  comments       String?
+
+  asset          Asset      @relation(fields: [assetId], references: [id])
+  reviewer       User?      @relation("QAReviewReviewer", fields: [reviewerId], references: [id])
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([assetId, status])
+}
+
+model Revision {
+  id            String         @id @default(cuid())
+  orderId        String
+  requestedById  String?
+  reason         String
+  status         RevisionStatus @default(REQUESTED)
+
+  order          Order          @relation(fields: [orderId], references: [id])
+  requestedBy    User?          @relation("RevisionRequestedBy", fields: [requestedById], references: [id])
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([orderId, status])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId         String
+  amount          Float
+  currency        String        @default("USD")
+  status          PaymentStatus @default(PENDING)
+  provider        String?
+  providerRef     String?
+
+  order           Order         @relation(fields: [orderId], references: [id])
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([orderId, status])
+}
+
+model Invoice {
+  id             String       @id @default(cuid())
+  organizationId String
+  orderId         String       @unique
+  invoiceNumber   String       @unique
+  subtotal        Float        @default(0)
+  tax             Float        @default(0)
+  total           Float        @default(0)
+  paidAt          DateTime?
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  order           Order        @relation(fields: [orderId], references: [id])
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  userId        String
+  type          NotificationType
+  title         String
+  message       String
+  readAt        DateTime?
+
+  user          User             @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([userId, type])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId        String?
+  action        String
+  entityType    String
+  entityId      String?
+  metadata      Json?
+
+  user          User?    @relation(fields: [userId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([userId])
+}
+
+model WorkflowEvent {
+  id            String            @id @default(cuid())
+  orderId        String
+  actorId        String?
+  eventType      WorkflowEventType
+  payload        Json?
+
+  order          Order             @relation(fields: [orderId], references: [id])
+  actor          User?             @relation("WorkflowEventActor", fields: [actorId], references: [id])
+
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([orderId, eventType])
+}

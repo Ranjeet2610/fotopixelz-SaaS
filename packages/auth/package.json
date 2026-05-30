@@ -1,0 +1,7 @@
+{
+  "name": "@repo/auth",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./auth.ts",
+  "types": "./auth.ts"
+}

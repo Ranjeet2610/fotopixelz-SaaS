@@ -1,0 +1,2 @@
+export type AssetsModuleStatus = 'placeholder'
+
