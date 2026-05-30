@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const audit-logsHealthSchema = z.object({
+export const auditLogsHealthSchema = z.object({
   module: z.string(),
   status: z.literal('placeholder')
 })

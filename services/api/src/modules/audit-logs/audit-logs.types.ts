@@ -1,2 +1,1 @@
-export type audit-logsModuleStatus = 'placeholder'
-
+export type AuditLogsModuleStatus = 'placeholder'
