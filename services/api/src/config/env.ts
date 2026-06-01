@@ -4,6 +4,7 @@ export const env = {
   databaseUrl: process.env.DATABASE_URL ?? '',
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET ?? '',
   jwtAccessTtl: process.env.JWT_ACCESS_TTL ?? '15m',
+  appBaseUrl: process.env.WEB_APP_URL ?? 'http://localhost:3000',
   redisUrl: process.env.REDIS_URL ?? '',
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',

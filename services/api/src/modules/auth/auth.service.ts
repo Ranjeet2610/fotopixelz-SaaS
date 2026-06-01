@@ -1,8 +1,16 @@
 import bcrypt from "bcryptjs"
+import crypto from "node:crypto"
 import jwt, { type SignOptions } from "jsonwebtoken"
 import { env } from "../../config/env"
 import { prisma } from "../../database/prisma"
-import type { AuthResponse, AuthUserDTO, LoginInput, RegisterInput } from "./auth.types"
+import type {
+  AuthResponse,
+  AuthUserDTO,
+  ForgotPasswordInput,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput
+} from "./auth.types"
 
 function toAuthUser(user: { id: string; name: string | null; email: string; role: AuthUserDTO["role"] }): AuthUserDTO {
   return {
@@ -29,6 +37,10 @@ function issueAccessToken(user: AuthUserDTO): string {
     env.jwtAccessSecret,
     { expiresIn }
   )
+}
+
+function hashResetToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex")
 }
 
 export async function register(input: RegisterInput): Promise<AuthResponse> {
@@ -81,5 +93,62 @@ export async function getCurrentUser(userId: string): Promise<AuthUserDTO | null
   })
 
   return user ? toAuthUser(user) : null
+}
+
+export async function forgotPassword(input: ForgotPasswordInput): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { email: input.email },
+    select: { id: true, email: true }
+  })
+
+  if (!user) {
+    return
+  }
+
+  const rawToken = crypto.randomBytes(32).toString("hex")
+  const tokenHash = hashResetToken(rawToken)
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordResetToken: tokenHash,
+      passwordResetExpiresAt: expiresAt
+    }
+  })
+
+  const resetLink = `${env.appBaseUrl}/reset-password?token=${rawToken}`
+  console.log(`Password reset requested for ${user.email}. Reset link: ${resetLink}`)
+}
+
+export async function resetPassword(input: ResetPasswordInput): Promise<void> {
+  const tokenHash = hashResetToken(input.token)
+
+  const user = await prisma.user.findFirst({
+    where: {
+      passwordResetToken: tokenHash,
+      passwordResetExpiresAt: {
+        gt: new Date()
+      }
+    },
+    select: {
+      id: true
+    }
+  })
+
+  if (!user) {
+    throw new Error("Invalid or expired reset token")
+  }
+
+  const passwordHash = await bcrypt.hash(input.password, 10)
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: passwordHash,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null
+    }
+  })
 }
 

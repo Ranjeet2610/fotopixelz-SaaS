@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
-import { loginSchema, registerSchema } from './auth.validator'
-import { getCurrentUser, login, register } from './auth.service'
+import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from './auth.validator'
+import { forgotPassword, getCurrentUser, login, register, resetPassword } from './auth.service'
 
 export function getAuthHealth(_req: Request, res: Response) {
   res.status(200).json({ module: "auth", status: "ok" })
@@ -48,5 +48,45 @@ export async function meHandler(req: Request, res: Response) {
   }
 
   return res.status(200).json({ success: true, data: user })
+}
+
+export function logoutHandler(_req: Request, res: Response) {
+  return res.status(200).json({
+    success: true,
+    message: "Logged out successfully"
+  })
+}
+
+export async function forgotPasswordHandler(req: Request, res: Response) {
+  const parsed = forgotPasswordSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  await forgotPassword(parsed.data)
+
+  return res.status(200).json({
+    success: true,
+    message: "If this email exists, a reset link has been sent."
+  })
+}
+
+export async function resetPasswordHandler(req: Request, res: Response) {
+  const parsed = resetPasswordSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    await resetPassword(parsed.data)
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful"
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Reset password failed"
+    const status = message === "Invalid or expired reset token" ? 400 : 500
+    return res.status(status).json({ success: false, message })
+  }
 }
 
