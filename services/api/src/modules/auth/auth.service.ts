@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs"
 import crypto from "node:crypto"
-import jwt, { type SignOptions } from "jsonwebtoken"
+import { signAccessToken, type AccessTokenExpiresIn } from "@repo/auth"
 import { env } from "../../config/env"
 import { prisma } from "../../database/prisma"
 import type {
@@ -26,17 +26,10 @@ function issueAccessToken(user: AuthUserDTO): string {
     throw new Error("JWT_ACCESS_SECRET is missing")
   }
 
-  const expiresIn = env.jwtAccessTtl as SignOptions["expiresIn"]
-
-  return jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-      email: user.email
-    },
-    env.jwtAccessSecret,
-    { expiresIn }
-  )
+  return signAccessToken(user, {
+    secret: env.jwtAccessSecret,
+    expiresIn: env.jwtAccessTtl as AccessTokenExpiresIn
+  })
 }
 
 function hashResetToken(token: string): string {

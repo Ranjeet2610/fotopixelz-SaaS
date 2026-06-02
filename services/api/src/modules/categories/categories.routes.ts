@@ -1,6 +1,5 @@
 import { Router } from 'express'
-import { requireAdmin } from '../../common/middleware/admin'
-import { requireAuth } from '../../common/middleware/auth'
+import { requireAdmin, requireAuth } from '@repo/auth'
 import {
   createCategoryHandler,
   deleteCategoryHandler,

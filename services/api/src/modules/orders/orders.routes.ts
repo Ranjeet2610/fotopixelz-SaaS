@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth } from '../../common/middleware/auth'
+import { requireAuth } from '@repo/auth'
 import {
   createOrderHandler,
   deleteOrderHandler,

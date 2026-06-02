@@ -41,6 +41,18 @@ enum AssetStatus {
   ARCHIVED
 }
 
+enum StorageProvider {
+  AWS_S3
+  CLOUDFLARE_R2
+}
+
+enum UploadStatus {
+  PENDING
+  UPLOADED
+  FAILED
+  DELETED
+}
+
 enum EditingJobStatus {
   QUEUED
   ASSIGNED
@@ -185,6 +197,21 @@ model ServiceCategory {
   updatedAt   DateTime   @updatedAt
 }
 
+model Addon {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  price       Float    @default(0)
+  credits     Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+}
+
 model Service {
   id             String          @id @default(cuid())
   categoryId     String
@@ -281,6 +308,29 @@ model AssetVersion {
   updatedAt    DateTime @updatedAt
 
   @@unique([assetId, version])
+}
+
+model Upload {
+  id              String          @id @default(cuid())
+  organizationId  String
+  userId          String
+  orderId         String?
+  originalName    String
+  fileName        String
+  mimeType        String
+  fileSize        Int
+  storageProvider StorageProvider
+  storageKey      String
+  storageUrl      String?
+  status          UploadStatus    @default(PENDING)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([organizationId, status])
+  @@index([userId])
+  @@index([orderId])
+  @@index([storageProvider])
 }
 
 model EditingJob {

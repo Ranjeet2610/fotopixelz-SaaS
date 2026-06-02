@@ -1,11 +1,13 @@
-import type { Permission } from './permissions'
-import { ROLE_PERMISSIONS } from './permissions'
-import type { Role } from './roles'
-
-export function hasRole(role: Role, allowed: readonly Role[]) {
-  return allowed.includes(role)
-}
-
-export function hasPermission(role: Role, permission: Permission) {
-  return ROLE_PERMISSIONS[role].includes(permission)
-}
+export type { Permission, PermissionGroup } from './permissions'
+export { PERMISSION_GROUPS, ROLE_PERMISSIONS } from './permissions'
+export type { Role } from './roles'
+export { ROLES, isRole, parseRole } from './roles'
+export {
+  hasPermission,
+  hasRole,
+  requirePermission,
+  requireRole
+} from './guards'
+export type { AccessTokenExpiresIn, AccessTokenPayload, AuthUser } from './tokens'
+export { signAccessToken, verifyAccessToken } from './tokens'
+export { requireAdmin, requireAuth } from './middleware'

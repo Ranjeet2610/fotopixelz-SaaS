@@ -3,5 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "main": "./auth.ts",
-  "types": "./auth.ts"
+  "types": "./auth.ts",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10"
+  }
 }

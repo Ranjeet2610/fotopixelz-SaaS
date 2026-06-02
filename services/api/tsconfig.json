@@ -14,6 +14,7 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
+      "@repo/auth": ["../../packages/auth/auth.ts"],
       "@repo/auth/*": ["../../packages/auth/*"],
       "@repo/database": ["../../packages/database/src/client.ts"]
     }
