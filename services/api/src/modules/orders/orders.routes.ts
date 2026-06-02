@@ -1,23 +1,29 @@
 import { Router } from 'express'
 import { requireAuth } from '@repo/auth'
 import {
+  assignEditorHandler,
+  assignQaHandler,
   createOrderHandler,
   deleteOrderHandler,
   getOrderHandler,
   getOrdersHealth,
   listOrdersHandler,
-  updateOrderHandler
+  updateOrderHandler,
+  updateOrderStatusHandler
 } from './orders.controller'
 
 const ordersRouter = Router()
 
-ordersRouter.get('/health', getOrdersHealth)
-
 ordersRouter.use(requireAuth)
-ordersRouter.get('/', listOrdersHandler)
+
+ordersRouter.get('/health', getOrdersHealth)
 ordersRouter.post('/', createOrderHandler)
-ordersRouter.get('/:orderId', getOrderHandler)
-ordersRouter.patch('/:orderId', updateOrderHandler)
-ordersRouter.delete('/:orderId', deleteOrderHandler)
+ordersRouter.get('/', listOrdersHandler)
+ordersRouter.patch('/status', updateOrderStatusHandler)
+ordersRouter.patch('/assign-editor', assignEditorHandler)
+ordersRouter.patch('/assign-qa', assignQaHandler)
+ordersRouter.get('/:id', getOrderHandler)
+ordersRouter.patch('/:id', updateOrderHandler)
+ordersRouter.delete('/:id', deleteOrderHandler)
 
 export default ordersRouter

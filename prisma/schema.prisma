@@ -16,18 +16,15 @@ enum UserRole {
 
 enum OrderStatus {
   DRAFT
-  SUBMITTED
-  AI_PROCESSING
-  EDITOR_ASSIGNED
-  EDITING_IN_PROGRESS
-  QA_PENDING
-  QA_REJECTED
-  CLIENT_REVIEW
-  REVISION_REQUESTED
+  UPLOADED
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  READY_FOR_QA
+  REVISION_REQUIRED
   APPROVED
   DELIVERED
-  COMPLETED
-  CANCELED
+  CANCELLED
 }
 
 enum AssetStatus {
@@ -51,6 +48,13 @@ enum UploadStatus {
   UPLOADED
   FAILED
   DELETED
+}
+
+enum OrderPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 enum EditingJobStatus {
@@ -236,11 +240,20 @@ model Order {
   id             String          @id @default(cuid())
   organizationId String
   createdById    String
+  categoryId     String?
+  assignedEditorId String?
+  assignedQaId   String?
   title          String
+  instructions   String?
   status         OrderStatus     @default(DRAFT)
+  priority       OrderPriority   @default(NORMAL)
+  totalImages    Int             @default(0)
+  creditsUsed    Int             @default(0)
   totalAmount    Float           @default(0)
   currency       String          @default("USD")
   dueAt          DateTime?
+  dueDate        DateTime?
+  isDeleted      Boolean         @default(false)
 
   organization   Organization    @relation(fields: [organizationId], references: [id])
   createdBy      User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
@@ -256,6 +269,10 @@ model Order {
 
   @@index([organizationId, status])
   @@index([createdById])
+  @@index([assignedEditorId, status])
+  @@index([assignedQaId, status])
+  @@index([categoryId])
+  @@index([isDeleted])
 }
 
 model OrderItem {
