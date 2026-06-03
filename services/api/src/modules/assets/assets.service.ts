@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client'
+import { requireRole } from '@repo/auth'
 import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
 import type {
@@ -5,11 +7,30 @@ import type {
   CreateAssetVersionInput,
   ListAssetsQuery,
   RequestContext,
+  StorageProvider,
   UpdateAssetInput,
   UpdateAssetVersionInput
 } from './assets.types'
 
-const assetInclude = {
+const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'] as const
+const VERSION_MANAGER_ROLES = ['ADMIN', 'SUPER_ADMIN', 'EDITOR', 'QA'] as const
+
+const assetSelect = {
+  id: true,
+  organizationId: true,
+  orderId: true,
+  uploadId: true,
+  name: true,
+  fileName: true,
+  mimeType: true,
+  storageProvider: true,
+  storageKey: true,
+  storageUrl: true,
+  status: true,
+  createdById: true,
+  isDeleted: true,
+  createdAt: true,
+  updatedAt: true,
   order: {
     select: {
       id: true,
@@ -17,6 +38,8 @@ const assetInclude = {
       status: true,
       organizationId: true,
       createdById: true,
+      assignedEditorId: true,
+      assignedQaId: true,
       organization: {
         select: {
           id: true,
@@ -25,17 +48,37 @@ const assetInclude = {
         }
       }
     }
-  },
-  versions: {
-    orderBy: { version: 'desc' as const }
   }
+} as const
+
+const versionSelect = {
+  id: true,
+  assetId: true,
+  versionNumber: true,
+  fileName: true,
+  mimeType: true,
+  storageProvider: true,
+  storageKey: true,
+  storageUrl: true,
+  notes: true,
+  createdById: true,
+  isDeleted: true,
+  createdAt: true,
+  updatedAt: true
+} as const
+
+function isAdmin(context: RequestContext) {
+  return requireRole(context.role, ADMIN_ROLES)
 }
 
-function uniqueConstraintMessage(error: unknown, fallback: string) {
-  if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
-    return fallback
-  }
-  return undefined
+function canManageVersion(context: RequestContext) {
+  return requireRole(context.role, VERSION_MANAGER_ROLES)
+}
+
+function mockStorageBaseUrl(provider: StorageProvider) {
+  return provider === 'AWS_S3'
+    ? 'https://mock-s3.local'
+    : 'https://mock-r2.local'
 }
 
 export function getAssetsStatus() {
@@ -43,28 +86,13 @@ export function getAssetsStatus() {
 }
 
 export async function listAssets(context: RequestContext, query: ListAssetsQuery) {
-  const where = {
-    ...(query.orderId ? { orderId: query.orderId } : {}),
-    ...(query.status ? { status: query.status } : {}),
-    order: {
-      OR: [
-        { createdById: context.userId },
-        {
-          organization: {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          }
-        }
-      ]
-    }
-  }
-
+  const where = await buildListWhere(context, query)
   const skip = (query.page - 1) * query.limit
-  const [assets, total] = await prisma.$transaction([
+
+  const [items, total] = await prisma.$transaction([
     prisma.asset.findMany({
       where,
-      include: assetInclude,
+      select: assetSelect,
       orderBy: { createdAt: 'desc' },
       skip,
       take: query.limit
@@ -73,7 +101,7 @@ export async function listAssets(context: RequestContext, query: ListAssetsQuery
   ])
 
   return {
-    items: assets,
+    items,
     page: query.page,
     limit: query.limit,
     total
@@ -81,9 +109,216 @@ export async function listAssets(context: RequestContext, query: ListAssetsQuery
 }
 
 export async function getAsset(context: RequestContext, assetId: string) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanViewAsset(context, asset)
+  return asset
+}
+
+export async function createAsset(context: RequestContext, input: CreateAssetInput) {
+  if (!isAdmin(context)) {
+    throw new AppError(403, 'Forbidden')
+  }
+
+  const order = await ensureOrderForAsset(input.organizationId, input.orderId)
+  await ensureUploadForAsset(input.organizationId, input.orderId, input.uploadId)
+
+  return prisma.asset.create({
+    data: {
+      organizationId: input.organizationId,
+      orderId: order.id,
+      uploadId: input.uploadId ?? null,
+      name: input.name,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      storageProvider: input.storageProvider,
+      storageKey: input.storageKey,
+      storageUrl: input.storageUrl ?? null,
+      originalUrl: input.storageUrl ?? null,
+      status: input.status,
+      createdById: context.userId
+    },
+    select: assetSelect
+  })
+}
+
+export async function updateAsset(context: RequestContext, assetId: string, input: UpdateAssetInput) {
+  if (!isAdmin(context)) {
+    throw new AppError(403, 'Forbidden')
+  }
+
+  const asset = await findActiveAsset(assetId)
+
+  return prisma.asset.update({
+    where: { id: asset.id },
+    data: {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.storageKey !== undefined ? { storageKey: input.storageKey } : {}),
+      ...(input.storageUrl !== undefined ? { storageUrl: input.storageUrl, originalUrl: input.storageUrl } : {})
+    },
+    select: assetSelect
+  })
+}
+
+export async function deleteAsset(context: RequestContext, assetId: string) {
+  if (!isAdmin(context)) {
+    throw new AppError(403, 'Forbidden')
+  }
+
+  const asset = await findActiveAsset(assetId)
+
+  await prisma.asset.update({
+    where: { id: asset.id },
+    data: {
+      isDeleted: true,
+      status: 'ARCHIVED'
+    }
+  })
+}
+
+export async function listAssetVersions(context: RequestContext, assetId: string) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanViewAsset(context, asset)
+
+  return prisma.assetVersion.findMany({
+    where: {
+      assetId,
+      isDeleted: false
+    },
+    select: versionSelect,
+    orderBy: { versionNumber: 'desc' }
+  })
+}
+
+export async function createAssetVersion(
+  context: RequestContext,
+  assetId: string,
+  input: CreateAssetVersionInput
+) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanManageAssetVersion(context, asset)
+
+  const versionNumber = await nextAssetVersionNumber(asset.id)
+
+  return prisma.assetVersion.create({
+    data: {
+      assetId: asset.id,
+      versionNumber,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      storageProvider: input.storageProvider,
+      storageKey: input.storageKey,
+      storageUrl: input.storageUrl ?? null,
+      notes: input.notes ?? null,
+      createdById: context.userId
+    },
+    select: versionSelect
+  })
+}
+
+export async function updateAssetVersion(
+  context: RequestContext,
+  assetId: string,
+  versionId: string,
+  input: UpdateAssetVersionInput
+) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanManageAssetVersion(context, asset)
+  await ensureActiveVersion(asset.id, versionId)
+
+  return prisma.assetVersion.update({
+    where: { id: versionId },
+    data: {
+      ...(input.fileName !== undefined ? { fileName: input.fileName } : {}),
+      ...(input.mimeType !== undefined ? { mimeType: input.mimeType } : {}),
+      ...(input.storageProvider !== undefined ? { storageProvider: input.storageProvider } : {}),
+      ...(input.storageKey !== undefined ? { storageKey: input.storageKey } : {}),
+      ...(input.storageUrl !== undefined ? { storageUrl: input.storageUrl } : {}),
+      ...(input.notes !== undefined ? { notes: input.notes } : {})
+    },
+    select: versionSelect
+  })
+}
+
+export async function deleteAssetVersion(context: RequestContext, assetId: string, versionId: string) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanManageAssetVersion(context, asset)
+  await ensureActiveVersion(asset.id, versionId)
+
+  await prisma.assetVersion.update({
+    where: { id: versionId },
+    data: { isDeleted: true }
+  })
+}
+
+export async function getAssetDownloadUrl(context: RequestContext, assetId: string) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanViewAsset(context, asset)
+
+  const baseUrl = asset.storageUrl ?? `${mockStorageBaseUrl(asset.storageProvider)}/${asset.storageKey}`
+
+  return {
+    downloadUrl: `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mockDownload=true`,
+    expiresIn: 900
+  }
+}
+
+async function buildListWhere(context: RequestContext, query: ListAssetsQuery): Promise<Prisma.AssetWhereInput> {
+  const base: Prisma.AssetWhereInput = {
+    isDeleted: false,
+    ...(query.organizationId ? { organizationId: query.organizationId } : {}),
+    ...(query.orderId ? { orderId: query.orderId } : {}),
+    ...(query.status ? { status: query.status } : {})
+  }
+
+  if (isAdmin(context)) {
+    return base
+  }
+
+  if (context.role === 'CLIENT') {
+    if (query.organizationId) {
+      await ensureOrganizationAccess(context, query.organizationId)
+      return base
+    }
+
+    const organizationIds = await getUserOrganizationIds(context.userId)
+    return {
+      ...base,
+      organizationId: { in: organizationIds }
+    }
+  }
+
+  if (context.role === 'EDITOR') {
+    return {
+      ...base,
+      order: {
+        assignedEditorId: context.userId
+      }
+    }
+  }
+
+  if (context.role === 'QA') {
+    return {
+      ...base,
+      order: {
+        assignedQaId: context.userId
+      }
+    }
+  }
+
+  return {
+    ...base,
+    id: '__never__'
+  }
+}
+
+async function findActiveAsset(assetId: string) {
   const asset = await prisma.asset.findFirst({
-    where: accessibleAssetWhere(context, assetId),
-    include: assetInclude
+    where: {
+      id: assetId,
+      isDeleted: false
+    },
+    select: assetSelect
   })
 
   if (!asset) {
@@ -93,171 +328,59 @@ export async function getAsset(context: RequestContext, assetId: string) {
   return asset
 }
 
-export async function createAsset(context: RequestContext, input: CreateAssetInput) {
-  await ensureOrderAccess(context, input.orderId)
-
-  return prisma.asset.create({
-    data: {
-      orderId: input.orderId,
-      fileName: input.fileName,
-      originalUrl: input.originalUrl,
-      status: input.status,
-      versions: {
-        create: {
-          version: 1,
-          fileUrl: input.originalUrl,
-          notes: input.versionNotes
-        }
-      }
-    },
-    include: assetInclude
-  })
-}
-
-export async function updateAsset(context: RequestContext, assetId: string, input: UpdateAssetInput) {
-  await ensureAssetAccess(context, assetId)
-
-  return prisma.asset.update({
-    where: { id: assetId },
-    data: input,
-    include: assetInclude
-  })
-}
-
-export async function deleteAsset(context: RequestContext, assetId: string) {
-  await ensureAssetAccess(context, assetId)
-
-  await prisma.$transaction(async (tx) => {
-    await tx.assetVersion.deleteMany({ where: { assetId } })
-    await tx.editingJob.deleteMany({ where: { assetId } })
-    await tx.aiJob.deleteMany({ where: { assetId } })
-    await tx.qAReview.deleteMany({ where: { assetId } })
-    await tx.asset.delete({ where: { id: assetId } })
-  })
-}
-
-export async function listAssetVersions(context: RequestContext, assetId: string) {
-  await ensureAssetAccess(context, assetId)
-
-  return prisma.assetVersion.findMany({
-    where: { assetId },
-    orderBy: { version: 'desc' }
-  })
-}
-
-export async function createAssetVersion(
+async function ensureCanViewAsset(
   context: RequestContext,
-  assetId: string,
-  input: CreateAssetVersionInput
+  asset: Awaited<ReturnType<typeof findActiveAsset>>
 ) {
-  await ensureAssetAccess(context, assetId)
-
-  const version = input.version ?? (await nextAssetVersion(assetId))
-
-  try {
-    return await prisma.assetVersion.create({
-      data: {
-        assetId,
-        version,
-        fileUrl: input.fileUrl,
-        notes: input.notes
-      }
-    })
-  } catch (error) {
-    const message = uniqueConstraintMessage(error, 'Asset version already exists')
-    if (message) {
-      throw new AppError(409, message)
-    }
-    throw error
+  if (isAdmin(context)) {
+    return
   }
+
+  if (context.role === 'CLIENT') {
+    await ensureOrganizationAccess(context, asset.organizationId)
+    return
+  }
+
+  if (context.role === 'EDITOR' && asset.order.assignedEditorId === context.userId) {
+    return
+  }
+
+  if (context.role === 'QA' && asset.order.assignedQaId === context.userId) {
+    return
+  }
+
+  throw new AppError(404, 'Asset not found')
 }
 
-export async function updateAssetVersion(
+async function ensureCanManageAssetVersion(
   context: RequestContext,
-  assetId: string,
-  versionId: string,
-  input: UpdateAssetVersionInput
+  asset: Awaited<ReturnType<typeof findActiveAsset>>
 ) {
-  await ensureAssetVersionAccess(context, assetId, versionId)
-
-  try {
-    return await prisma.assetVersion.update({
-      where: { id: versionId },
-      data: input
-    })
-  } catch (error) {
-    const message = uniqueConstraintMessage(error, 'Asset version already exists')
-    if (message) {
-      throw new AppError(409, message)
-    }
-    throw error
+  if (!canManageVersion(context)) {
+    throw new AppError(403, 'Forbidden')
   }
-}
 
-export async function deleteAssetVersion(context: RequestContext, assetId: string, versionId: string) {
-  await ensureAssetVersionAccess(context, assetId, versionId)
-
-  await prisma.assetVersion.delete({
-    where: { id: versionId }
-  })
-}
-
-function accessibleAssetWhere(context: RequestContext, assetId: string) {
-  return {
-    id: assetId,
-    order: {
-      OR: [
-        { createdById: context.userId },
-        {
-          organization: {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          }
-        }
-      ]
-    }
+  if (isAdmin(context)) {
+    return
   }
-}
 
-async function ensureAssetAccess(context: RequestContext, assetId: string) {
-  const asset = await prisma.asset.findFirst({
-    where: accessibleAssetWhere(context, assetId),
-    select: { id: true }
-  })
-
-  if (!asset) {
-    throw new AppError(404, 'Asset not found')
+  if (context.role === 'EDITOR' && asset.order.assignedEditorId === context.userId) {
+    return
   }
-}
 
-async function ensureAssetVersionAccess(context: RequestContext, assetId: string, versionId: string) {
-  await ensureAssetAccess(context, assetId)
-
-  const version = await prisma.assetVersion.findFirst({
-    where: { id: versionId, assetId },
-    select: { id: true }
-  })
-
-  if (!version) {
-    throw new AppError(404, 'Asset version not found')
+  if (context.role === 'QA' && asset.order.assignedQaId === context.userId) {
+    return
   }
+
+  throw new AppError(403, 'Forbidden')
 }
 
-async function ensureOrderAccess(context: RequestContext, orderId: string) {
+async function ensureOrderForAsset(organizationId: string, orderId: string) {
   const order = await prisma.order.findFirst({
     where: {
       id: orderId,
-      OR: [
-        { createdById: context.userId },
-        {
-          organization: {
-            memberships: {
-              some: { userId: context.userId }
-            }
-          }
-        }
-      ]
+      organizationId,
+      isDeleted: false
     },
     select: { id: true }
   })
@@ -265,14 +388,90 @@ async function ensureOrderAccess(context: RequestContext, orderId: string) {
   if (!order) {
     throw new AppError(404, 'Order not found')
   }
+
+  return order
 }
 
-async function nextAssetVersion(assetId: string) {
-  const latest = await prisma.assetVersion.findFirst({
-    where: { assetId },
-    orderBy: { version: 'desc' },
-    select: { version: true }
+async function ensureUploadForAsset(organizationId: string, orderId: string, uploadId: string | undefined) {
+  if (!uploadId) {
+    return
+  }
+
+  const upload = await prisma.upload.findFirst({
+    where: {
+      id: uploadId,
+      organizationId,
+      status: { not: 'DELETED' }
+    },
+    select: {
+      id: true,
+      orderId: true
+    }
   })
 
-  return (latest?.version ?? 0) + 1
+  if (!upload) {
+    throw new AppError(404, 'Upload not found')
+  }
+
+  if (upload.orderId && upload.orderId !== orderId) {
+    throw new AppError(400, 'Upload does not belong to order')
+  }
+}
+
+async function ensureActiveVersion(assetId: string, versionId: string) {
+  const version = await prisma.assetVersion.findFirst({
+    where: {
+      id: versionId,
+      assetId,
+      isDeleted: false
+    },
+    select: { id: true }
+  })
+
+  if (!version) {
+    throw new AppError(404, 'Asset version not found')
+  }
+
+  return version
+}
+
+async function ensureOrganizationAccess(context: RequestContext, organizationId: string) {
+  const membership = await prisma.membership.findFirst({
+    where: {
+      organizationId,
+      userId: context.userId,
+      organization: {
+        isActive: true
+      }
+    },
+    select: { id: true }
+  })
+
+  if (!membership) {
+    throw new AppError(403, 'Forbidden')
+  }
+}
+
+async function getUserOrganizationIds(userId: string) {
+  const memberships = await prisma.membership.findMany({
+    where: {
+      userId,
+      organization: {
+        isActive: true
+      }
+    },
+    select: { organizationId: true }
+  })
+
+  return memberships.map((membership) => membership.organizationId)
+}
+
+async function nextAssetVersionNumber(assetId: string) {
+  const latest = await prisma.assetVersion.findFirst({
+    where: { assetId },
+    orderBy: { versionNumber: 'desc' },
+    select: { versionNumber: true }
+  })
+
+  return (latest?.versionNumber ?? 0) + 1
 }

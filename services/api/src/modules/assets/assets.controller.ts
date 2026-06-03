@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express'
-import type { Role } from '@repo/auth/roles'
 import { AppError } from '../../common/errors/app-error'
 import {
   assetIdParamsSchema,
@@ -16,6 +15,7 @@ import {
   deleteAsset,
   deleteAssetVersion,
   getAsset,
+  getAssetDownloadUrl,
   getAssetsStatus,
   listAssets,
   listAssetVersions,
@@ -26,6 +26,25 @@ import type { RequestContext } from './assets.types'
 
 export function getAssetsHealth(_req: Request, res: Response) {
   res.status(200).json(getAssetsStatus())
+}
+
+export async function createAssetHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const parsed = createAssetSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const asset = await createAsset(context, parsed.data)
+    return res.status(201).json({ success: true, data: asset })
+  } catch (error) {
+    return sendError(res, error)
+  }
 }
 
 export async function listAssetsHandler(req: Request, res: Response) {
@@ -61,25 +80,6 @@ export async function getAssetHandler(req: Request, res: Response) {
   try {
     const asset = await getAsset(context, params.data.assetId)
     return res.status(200).json({ success: true, data: asset })
-  } catch (error) {
-    return sendError(res, error)
-  }
-}
-
-export async function createAssetHandler(req: Request, res: Response) {
-  const context = requestContext(req)
-  if (!context) {
-    return res.status(401).json({ success: false, message: 'Unauthorized' })
-  }
-
-  const parsed = createAssetSchema.safeParse(req.body)
-  if (!parsed.success) {
-    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
-  }
-
-  try {
-    const asset = await createAsset(context, parsed.data)
-    return res.status(201).json({ success: true, data: asset })
   } catch (error) {
     return sendError(res, error)
   }
@@ -122,7 +122,7 @@ export async function deleteAssetHandler(req: Request, res: Response) {
 
   try {
     await deleteAsset(context, params.data.assetId)
-    return res.status(204).send()
+    return res.status(200).json({ success: true, message: 'Asset deleted successfully' })
   } catch (error) {
     return sendError(res, error)
   }
@@ -213,20 +213,41 @@ export async function deleteAssetVersionHandler(req: Request, res: Response) {
 
   try {
     await deleteAssetVersion(context, params.data.assetId, params.data.versionId)
-    return res.status(204).send()
+    return res.status(200).json({ success: true, message: 'Asset version deleted successfully' })
+  } catch (error) {
+    return sendError(res, error)
+  }
+}
+
+export async function getAssetDownloadUrlHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const params = assetIdParamsSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({ success: false, errors: params.error.flatten() })
+  }
+
+  try {
+    const download = await getAssetDownloadUrl(context, params.data.assetId)
+    return res.status(200).json({ success: true, data: download })
   } catch (error) {
     return sendError(res, error)
   }
 }
 
 function requestContext(req: Request): RequestContext | undefined {
-  if (!req.userId || !req.role) {
+  const userId = req.user?.id ?? req.userId
+
+  if (!userId || !req.role) {
     return undefined
   }
 
   return {
-    userId: req.userId,
-    role: req.role as Role
+    userId,
+    role: req.role
   }
 }
 
