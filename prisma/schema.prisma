@@ -28,12 +28,9 @@ enum OrderStatus {
 }
 
 enum AssetStatus {
-  UPLOADED
+  PENDING
   PROCESSING
-  READY_FOR_EDITING
-  EDITED
-  QA_PENDING
-  READY_FOR_DELIVERY
+  READY
   DELIVERED
   ARCHIVED
 }
@@ -294,37 +291,57 @@ model OrderItem {
 }
 
 model Asset {
-  id             String       @id @default(cuid())
+  id              String          @id @default(cuid())
+  organizationId  String
   orderId         String
+  uploadId        String?
+  name            String
   fileName        String
-  originalUrl     String
-  status          AssetStatus  @default(UPLOADED)
+  mimeType        String
+  storageProvider StorageProvider
+  storageKey      String
+  storageUrl      String?
+  originalUrl     String?
+  status          AssetStatus     @default(PENDING)
+  createdById     String
+  isDeleted       Boolean         @default(false)
 
-  order           Order        @relation(fields: [orderId], references: [id])
+  order           Order           @relation(fields: [orderId], references: [id])
   versions        AssetVersion[]
   editingJobs     EditingJob[]
   aiJobs          AiJob[]
   qaReviews       QAReview[]
 
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
+  @@index([organizationId, status])
   @@index([orderId, status])
+  @@index([uploadId])
+  @@index([createdById])
+  @@index([isDeleted])
 }
 
 model AssetVersion {
-  id          String   @id @default(cuid())
-  assetId      String
-  version      Int      @default(1)
-  fileUrl      String
-  notes        String?
+  id              String          @id @default(cuid())
+  assetId         String
+  versionNumber   Int             @default(1)
+  fileName        String
+  mimeType        String
+  storageProvider StorageProvider
+  storageKey      String
+  storageUrl      String?
+  notes           String?
+  createdById     String
+  isDeleted       Boolean         @default(false)
 
-  asset        Asset    @relation(fields: [assetId], references: [id])
+  asset           Asset           @relation(fields: [assetId], references: [id])
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
-  @@unique([assetId, version])
+  @@unique([assetId, versionNumber])
+  @@index([isDeleted])
 }
 
 model Upload {
