@@ -1,8 +1,10 @@
+"use client";
+
+import { OrdersPage } from "@/components/orders-page";
+import { PeoplePage } from "@/components/people-page";
+import { useAuth } from "@/components/auth-provider";
+
 export default function Page() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>Admin QA</h1>
-      <p>Placeholder page for /admin/qa.</p>
-    </main>
-  )
+  const { user } = useAuth();
+  return user?.role === "QA" ? <OrdersPage queue /> : <PeoplePage mode="qa" />;
 }

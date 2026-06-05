@@ -1,8 +1,6 @@
-export default function Page() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>Admin Order Detail</h1>
-      <p>Placeholder page for /admin/orders/[orderId].</p>
-    </main>
-  )
+import { OrderDetailPage } from "@/components/order-detail-page";
+
+export default async function Page({ params }: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = await params;
+  return <OrderDetailPage orderId={orderId} />;
 }

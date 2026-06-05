@@ -1,5 +1,5 @@
 import { PeoplePage } from "@/components/people-page";
 
 export default function Page() {
-  return <PeoplePage mode="editors" />;
+  return <PeoplePage mode="all" />;
 }
