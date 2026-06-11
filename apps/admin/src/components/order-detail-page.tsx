@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { apiRequest } from "@/lib/api-client";
-import { dateValue, getId, nestedText, textValue } from "@/lib/format";
+import { isManagementRole, normalizeRole } from "@/lib/access-control";
+import { countCurrentReadyDeliverables } from "@/lib/asset-gallery-adapter";
+import { dateValue, getId, nestedText, numberValue, textValue } from "@/lib/format";
 import type { ApiRecord, OrderStatus } from "@/lib/types";
+import { workflowEventDescription } from "@/lib/workflow-events";
+import { useAuth } from "./auth-provider";
 import { useApiList, useApiResource } from "./data-hooks";
+import { OrderProductionWorkspace } from "./order-production-workspace";
 import {
   Button,
   Card,
@@ -30,14 +36,39 @@ const statuses: OrderStatus[] = [
 ];
 
 export function OrderDetailPage({ orderId }: { orderId: string }) {
+  const { user } = useAuth();
+  const role = normalizeRole(user?.role);
+  const canManage = isManagementRole(user?.role);
   const order = useApiResource<ApiRecord>(`/orders/${orderId}`);
   const uploads = useApiList<ApiRecord>(`/uploads/order/${orderId}`);
   const assets = useApiList<ApiRecord>("/assets", { orderId, limit: 100 });
+  const workflowEvents = useApiList<ApiRecord>(`/workflow/orders/${orderId}/events`);
+  const editors = useApiList<ApiRecord>("/admin/users/editors", { limit: 100 }, canManage);
+  const qaUsers = useApiList<ApiRecord>("/admin/users/qa", { limit: 100 }, canManage);
+  const lineItems = Array.isArray(order.data?.items) ? order.data.items : [];
+  const orderAddons = Array.isArray(order.data?.addons) ? order.data.addons : [];
+  const servicesSubtotal = lineItems.reduce((sum, item) => sum + numberValue(item.subtotal), 0);
+  const addonsSubtotal = orderAddons.reduce((sum, addon) => sum + numberValue(addon.subtotal), 0);
+
+  const currentStatus = textValue(order.data?.status, "DRAFT") as OrderStatus;
+  const organizationId = textValue(order.data?.organizationId, nestedText(order.data, ["organization", "id"]));
+  const deliverableVersion = numberValue(order.data?.deliverableVersion);
+  const readyDeliverableCount = useMemo(
+    () => countCurrentReadyDeliverables(assets.data.items),
+    [assets.data.items],
+  );
+  const assignedQaId = textValue(order.data?.assignedQaId, "");
+  const hasAssignedQa = Boolean(assignedQaId && assignedQaId !== "-");
+  const isDelivered = currentStatus === "DELIVERED";
+  const canMarkReadyForQa = !isDelivered && readyDeliverableCount > 0 && hasAssignedQa;
 
   async function updateStatus(status: OrderStatus) {
     await apiRequest("/orders/status", { method: "PATCH", body: { orderId, status } });
-    order.reload();
+    await Promise.all([order.reload(), workflowEvents.reload(), assets.reload()]);
   }
+
+  const showProductionWorkspace =
+    role === "EDITOR" || role === "QA" || canManage;
 
   return (
     <div className="stack-xl">
@@ -79,84 +110,157 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
               </div>
               <div>
                 <dt>Editor</dt>
-                <dd>{textValue(order.data?.assignedEditorId)}</dd>
+                <dd>{staffLabel(editors.data.items, textValue(order.data?.assignedEditorId))}</dd>
               </div>
               <div>
                 <dt>QA</dt>
-                <dd>{textValue(order.data?.assignedQaId)}</dd>
+                <dd>{staffLabel(qaUsers.data.items, textValue(order.data?.assignedQaId))}</dd>
               </div>
               <div>
                 <dt>Due</dt>
                 <dd>{dateValue(order.data?.dueDate ?? order.data?.dueAt)}</dd>
               </div>
+              <div>
+                <dt>Total amount</dt>
+                <dd>{numberValue(order.data?.totalAmount).toFixed(2)}</dd>
+              </div>
             </dl>
-            <SelectField label="Update status" value={textValue(order.data?.status, "DRAFT")} onChange={(event) => void updateStatus(event.target.value as OrderStatus)}>
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </SelectField>
+            {canManage ? (
+              <SelectField
+                label="Update status"
+                value={currentStatus}
+                onChange={(event) => void updateStatus(event.target.value as OrderStatus)}
+              >
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </SelectField>
+            ) : null}
+            {role === "EDITOR" && !isDelivered ? (
+              <div className="button-row editor-workflow-actions">
+                {currentStatus === "ASSIGNED" ? (
+                  <Button onClick={() => void updateStatus("IN_PROGRESS")}>Start work</Button>
+                ) : null}
+                {currentStatus === "IN_PROGRESS" || currentStatus === "REVISION_REQUIRED" ? (
+                  <div className="stack-sm">
+                    <Button
+                      onClick={() => void updateStatus("READY_FOR_QA")}
+                      disabled={!canMarkReadyForQa}
+                    >
+                      Mark ready for QA
+                    </Button>
+                    {!hasAssignedQa ? (
+                      <p className="form-error">A QA reviewer must be assigned before this order can enter the QA queue.</p>
+                    ) : null}
+                    {hasAssignedQa && readyDeliverableCount === 0 ? (
+                      <p className="form-error">
+                        {currentStatus === "REVISION_REQUIRED"
+                          ? "Upload revised deliverables before submitting to QA."
+                          : "Upload at least one deliverable before sending to QA."}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {isDelivered ? (
+              <p className="muted-copy">This order has been delivered and is read-only.</p>
+            ) : null}
+            {role === "QA" && currentStatus === "READY_FOR_QA" ? (
+              <p className="muted-copy">Use the revision notes section below to approve or request changes.</p>
+            ) : null}
           </Card>
 
           <Card>
-            <h2 className="section-title">Timeline</h2>
-            <div className="timeline">
-              <TimelineItem label="Created" value={dateValue(order.data?.createdAt)} />
-              <TimelineItem label="Last updated" value={dateValue(order.data?.updatedAt)} />
-              <TimelineItem label="Current status" value={textValue(order.data?.status)} />
-              <TimelineItem label="Due date" value={dateValue(order.data?.dueDate ?? order.data?.dueAt)} />
-            </div>
+            <h2 className="section-title">Audit trail</h2>
+            {workflowEvents.loading ? (
+              <LoadingBlock />
+            ) : workflowEvents.data.items.length === 0 ? (
+              <p className="muted-copy">No workflow events recorded yet.</p>
+            ) : (
+              <div className="timeline">
+                {workflowEvents.data.items.map((event) => (
+                  <TimelineItem
+                    key={getId(event)}
+                    label={workflowEventDescription(event)}
+                    value={`${dateValue(event.createdAt)} · ${nestedText(event, ["actor", "email"]) || "System"}`}
+                  />
+                ))}
+              </div>
+            )}
           </Card>
         </section>
       )}
 
+      {showProductionWorkspace && organizationId ? (
+        <OrderProductionWorkspace
+          role={role}
+          orderStatus={currentStatus}
+          organizationId={organizationId}
+          orderId={orderId}
+          deliverableVersion={deliverableVersion}
+          uploads={uploads.data.items}
+          uploadsLoading={uploads.loading}
+          assets={assets.data.items}
+          assetsLoading={assets.loading}
+          workflowEvents={workflowEvents.data.items}
+          onAssetsReload={() => void assets.reload()}
+          onWorkflowReload={() => void workflowEvents.reload()}
+          onQaApprove={() => void updateStatus("DELIVERED")}
+        />
+      ) : null}
+
       <Card>
-        <h2 className="section-title">Uploads</h2>
-        {uploads.loading ? (
-          <LoadingBlock />
-        ) : (
-          <DataTable
-            rows={uploads.data.items}
-            rowKey={(row, index) => getId(row) || String(index)}
-            empty="No uploads for this order."
-            columns={[
-              { key: "file", label: "File", render: (row) => <strong>{textValue(row.originalName ?? row.fileName)}</strong> },
-              { key: "provider", label: "Provider", render: (row) => textValue(row.storageProvider) },
-              { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
-              { key: "created", label: "Created", render: (row) => dateValue(row.createdAt) },
-            ]}
-          />
-        )}
+        <h2 className="section-title">Services</h2>
+        <DataTable
+          rows={lineItems}
+          rowKey={(row, index) => getId(row) || String(index)}
+          empty="No services on this order."
+          columns={[
+            { key: "service", label: "Service", render: (row) => <strong>{nestedText(row, ["service", "name"])}</strong> },
+            { key: "quantity", label: "Images", render: (row) => String(numberValue(row.quantity)) },
+            { key: "unitPrice", label: "Price / image", render: (row) => numberValue(row.unitPrice).toFixed(2) },
+            { key: "subtotal", label: "Subtotal", render: (row) => numberValue(row.subtotal).toFixed(2) },
+          ]}
+        />
+        {lineItems.length > 0 ? <p className="muted-copy">Services subtotal: {servicesSubtotal.toFixed(2)}</p> : null}
       </Card>
 
       <Card>
-        <h2 className="section-title">Assets</h2>
-        {assets.loading ? (
-          <LoadingBlock />
-        ) : (
-          <DataTable
-            rows={assets.data.items}
-            rowKey={(row, index) => getId(row) || String(index)}
-            empty="No assets for this order."
-            columns={[
-              {
-                key: "asset",
-                label: "Asset",
-                render: (row) => (
-                  <Link className="table-link" href={`/admin/assets/${getId(row)}`}>
-                    {textValue(row.name ?? row.fileName)}
-                  </Link>
-                ),
-              },
-              { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
-              { key: "created", label: "Created", render: (row) => dateValue(row.createdAt) },
-            ]}
-          />
-        )}
+        <h2 className="section-title">Addons</h2>
+        <DataTable
+          rows={orderAddons}
+          rowKey={(row, index) => getId(row) || String(index)}
+          empty="No addons on this order."
+          columns={[
+            { key: "addon", label: "Addon", render: (row) => <strong>{nestedText(row, ["addon", "name"])}</strong> },
+            { key: "pricingType", label: "Pricing", render: (row) => textValue(row.pricingType) },
+            { key: "quantity", label: "Quantity", render: (row) => String(numberValue(row.quantity)) },
+            { key: "unitPrice", label: "Unit price", render: (row) => numberValue(row.unitPrice).toFixed(2) },
+            { key: "subtotal", label: "Subtotal", render: (row) => numberValue(row.subtotal).toFixed(2) },
+          ]}
+        />
+        {orderAddons.length > 0 ? <p className="muted-copy">Addons subtotal: {addonsSubtotal.toFixed(2)}</p> : null}
+        {lineItems.length > 0 || orderAddons.length > 0 ? (
+          <p className="muted-copy">
+            Grand total: {numberValue(order.data?.totalAmount).toFixed(2)} (services {servicesSubtotal.toFixed(2)} + addons{" "}
+            {addonsSubtotal.toFixed(2)})
+          </p>
+        ) : null}
       </Card>
     </div>
   );
+}
+
+function staffLabel(staff: ApiRecord[], staffId: string) {
+  if (!staffId) {
+    return "-";
+  }
+
+  const match = staff.find((entry) => getId(entry) === staffId);
+  return match ? textValue(match.name ?? match.email) : staffId;
 }
 
 function TimelineItem({ label, value }: { label: string; value: string }) {

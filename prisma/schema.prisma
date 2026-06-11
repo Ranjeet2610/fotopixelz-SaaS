@@ -14,6 +14,26 @@ enum UserRole {
   SUPER_ADMIN
 }
 
+enum MembershipRole {
+  OWNER
+  ADMIN
+  CLIENT
+  EDITOR
+  QA
+  SUPER_ADMIN
+}
+
+enum OrganizationPlan {
+  DEMO
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
 enum OrderStatus {
   DRAFT
   UPLOADED
@@ -104,14 +124,24 @@ enum NotificationType {
 
 enum WorkflowEventType {
   ORDER_CREATED
+  IMAGES_UPLOADED
+  ORDER_SUBMITTED
   ASSET_UPLOADED
+  DELIVERABLE_VERSION_UPLOADED
   AI_JOB_STARTED
   AI_JOB_COMPLETED
   EDITOR_ASSIGNED
+  EDITOR_STARTED
+  QA_ASSIGNED
+  READY_FOR_QA
+  REVISION_SUBMITTED
+  QA_APPROVED
+  QA_REVISION_REQUESTED
   QA_SUBMITTED
   REVISION_REQUESTED
   PAYMENT_CONFIRMED
   DELIVERY_SENT
+  ORDER_STATUS_CHANGED
 }
 
 model User {
@@ -130,6 +160,7 @@ model User {
   editingJobs    EditingJob[]   @relation("EditingJobEditor")
   qaReviews      QAReview[]     @relation("QAReviewReviewer")
   revisions      Revision[]     @relation("RevisionRequestedBy")
+  uploadedAssets Asset[]        @relation("AssetUploadedBy")
   notifications  Notification[]
   auditLogs      AuditLog[]
   workflowEvents WorkflowEvent[] @relation("WorkflowEventActor")
@@ -156,10 +187,15 @@ model UserBillingProfile {
 }
 
 model Organization {
-  id          String        @id @default(cuid())
-  name        String
-  slug        String        @unique
-  isActive    Boolean       @default(true)
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  isActive           Boolean             @default(true)
+  plan               OrganizationPlan?
+  subscriptionStatus SubscriptionStatus?
+  trialEndsAt        DateTime?
+  freeImageCredits   Int                 @default(0)
+  usedImageCredits   Int                 @default(0)
 
   memberships Membership[]
   orders      Order[]
@@ -171,10 +207,10 @@ model Organization {
 }
 
 model Membership {
-  id             String       @id @default(cuid())
+  id             String         @id @default(cuid())
   userId         String
   organizationId String
-  role           UserRole     @default(CLIENT)
+  role           MembershipRole @default(CLIENT)
 
   user           User         @relation(fields: [userId], references: [id])
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -198,17 +234,25 @@ model ServiceCategory {
   updatedAt   DateTime   @updatedAt
 }
 
-model Addon {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  description String?
-  price       Float    @default(0)
-  credits     Int      @default(0)
-  isActive    Boolean  @default(true)
+enum AddonPricingType {
+  FIXED
+  PER_IMAGE
+}
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Addon {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  description String?
+  price       Float            @default(0)
+  pricingType AddonPricingType @default(FIXED)
+  credits     Int              @default(0)
+  isActive    Boolean          @default(true)
+
+  orderAddons OrderAddon[]
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([isActive])
 }
@@ -250,11 +294,14 @@ model Order {
   currency       String          @default("USD")
   dueAt          DateTime?
   dueDate        DateTime?
+  reviewRound    Int             @default(1)
+  deliverableVersion Int         @default(0)
   isDeleted      Boolean         @default(false)
 
   organization   Organization    @relation(fields: [organizationId], references: [id])
   createdBy      User            @relation("OrderCreatedBy", fields: [createdById], references: [id])
   items          OrderItem[]
+  addons         OrderAddon[]
   assets         Asset[]
   revisions      Revision[]
   payments       Payment[]
@@ -278,6 +325,7 @@ model OrderItem {
   serviceId   String
   quantity    Int      @default(1)
   unitPrice   Float    @default(0)
+  subtotal    Float    @default(0)
   notes       String?
 
   order       Order    @relation(fields: [orderId], references: [id])
@@ -288,6 +336,26 @@ model OrderItem {
 
   @@index([orderId])
   @@index([serviceId])
+}
+
+model OrderAddon {
+  id          String           @id @default(cuid())
+  orderId     String
+  addonId     String
+  quantity    Int              @default(1)
+  unitPrice   Float            @default(0)
+  pricingType AddonPricingType
+  subtotal    Float            @default(0)
+  credits     Int              @default(0)
+
+  order       Order            @relation(fields: [orderId], references: [id])
+  addon       Addon            @relation(fields: [addonId], references: [id])
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([orderId])
+  @@index([addonId])
 }
 
 model Asset {
@@ -303,10 +371,19 @@ model Asset {
   storageUrl      String?
   originalUrl     String?
   status          AssetStatus     @default(PENDING)
+  version         Int             @default(1)
+  reviewRound     Int             @default(1)
+  isCurrent       Boolean         @default(true)
+  uploadedById    String?
+  qaNotes         Json?
+  replacesAssetId String?
   createdById     String
   isDeleted       Boolean         @default(false)
 
   order           Order           @relation(fields: [orderId], references: [id])
+  uploadedBy      User?           @relation("AssetUploadedBy", fields: [uploadedById], references: [id])
+  replacesAsset   Asset?          @relation("AssetReplacement", fields: [replacesAssetId], references: [id])
+  replacedBy      Asset[]         @relation("AssetReplacement")
   versions        AssetVersion[]
   editingJobs     EditingJob[]
   aiJobs          AiJob[]
@@ -317,8 +394,12 @@ model Asset {
 
   @@index([organizationId, status])
   @@index([orderId, status])
+  @@index([orderId, version])
+  @@index([orderId, reviewRound])
+  @@index([orderId, isCurrent])
   @@index([uploadId])
   @@index([createdById])
+  @@index([uploadedById])
   @@index([isDeleted])
 }
 

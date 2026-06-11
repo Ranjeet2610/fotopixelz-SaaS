@@ -1,3 +1,4 @@
+import type { AddonPricingType } from '@prisma/client'
 import type { z } from 'zod'
 import {
   addonIdParamsSchema,
@@ -12,6 +13,7 @@ export type AddonDTO = {
   slug: string
   description: string | null
   price: number
+  pricingType: AddonPricingType
   credits: number
   isActive: boolean
   createdAt: Date

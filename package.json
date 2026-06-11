@@ -15,7 +15,10 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "db:cleanup-empty-orgs": "tsx prisma/scripts/cleanup-empty-organizations.ts",
+    "db:cleanup-empty-orgs:execute": "tsx prisma/scripts/cleanup-empty-organizations.ts --execute"
   },
   "keywords": [],
   "author": "",

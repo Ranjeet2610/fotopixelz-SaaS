@@ -1,37 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState } from "react";
 import { apiRequest } from "@/lib/api-client";
-import { compactPayload, dateValue, getId, textValue } from "@/lib/format";
-import type { ApiRecord, StorageProvider } from "@/lib/types";
+import { dateValue, getId, nestedText, textValue } from "@/lib/format";
+import type { ApiRecord } from "@/lib/types";
 import { useApiList, useApiResource } from "./data-hooks";
 import {
   Button,
   Card,
   DataTable,
   ErrorBanner,
-  FormActions,
-  FormShell,
   LoadingBlock,
-  Modal,
   PageHeader,
-  SelectField,
   StatusBadge,
   SuccessBanner,
-  TextAreaField,
-  TextField,
 } from "./ui";
 
-const versionProviders: StorageProvider[] = ["CLOUDFLARE_R2", "AWS_S3"];
+function isImageMimeType(mimeType: string) {
+  return mimeType.startsWith("image/");
+}
 
 export function AssetDetailPage({ assetId }: { assetId: string }) {
   const asset = useApiResource<ApiRecord>(`/assets/${assetId}`);
   const versions = useApiList<ApiRecord>(`/assets/${assetId}/versions`);
-  const [editingVersion, setEditingVersion] = useState<ApiRecord | "new" | null>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const mimeType = textValue(asset.data?.mimeType, "");
+  const previewUrl = textValue(asset.data?.storageUrl, "");
+  const orderId = textValue(asset.data?.orderId, "");
+  const organizationName = nestedText(asset.data, ["order", "organization", "name"]);
+  const organizationId = textValue(asset.data?.organizationId, nestedText(asset.data, ["order", "organization", "id"]));
 
   async function getDownloadUrl() {
     setActionError(null);
@@ -45,28 +46,16 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
     }
   }
 
-  async function deleteVersion(versionId: string) {
-    setActionError(null);
-    setMessage(null);
-    try {
-      await apiRequest(`/assets/${assetId}/versions/${versionId}`, { method: "DELETE" });
-      setMessage("Version deleted.");
-      versions.reload();
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Version delete failed");
-    }
-  }
-
   return (
     <div className="stack-xl">
       <PageHeader
         eyebrow="Asset details"
         title={textValue(asset.data?.name ?? asset.data?.fileName, "Asset")}
-        description={assetId}
+        description="Review generated deliverable metadata, related workflow context, and version history."
         actions={
           <div className="button-row">
             <Button variant="secondary" onClick={() => void getDownloadUrl()}>
-              Download URL
+              Download
             </Button>
             <Link className="admin-link-button" href="/admin/assets">
               Back to assets
@@ -92,15 +81,23 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
               </div>
               <div>
                 <dt>Order</dt>
-                <dd>{textValue(asset.data?.orderId)}</dd>
+                <dd>
+                  {orderId ? (
+                    <Link className="table-link" href={`/admin/orders/${orderId}`}>
+                      {nestedText(asset.data, ["order", "title"], orderId)}
+                    </Link>
+                  ) : (
+                    "-"
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Organization</dt>
+                <dd>{organizationName || organizationId || "-"}</dd>
               </div>
               <div>
                 <dt>Provider</dt>
                 <dd>{textValue(asset.data?.storageProvider)}</dd>
-              </div>
-              <div>
-                <dt>Storage key</dt>
-                <dd>{textValue(asset.data?.storageKey)}</dd>
               </div>
               <div>
                 <dt>Created</dt>
@@ -115,9 +112,18 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
           </Card>
 
           <Card>
-            <h2 className="section-title">Current file</h2>
+            <h2 className="section-title">Preview</h2>
             <p className="large-file-name">{textValue(asset.data?.fileName)}</p>
-            <p className="muted-copy">{textValue(asset.data?.mimeType)}</p>
+            <p className="muted-copy">{mimeType || "MIME type assigned during upload processing"}</p>
+            {previewUrl && isImageMimeType(mimeType) ? (
+              <img className="asset-preview" src={previewUrl} alt={textValue(asset.data?.fileName, "Asset preview")} />
+            ) : previewUrl ? (
+              <a className="table-link" href={previewUrl} target="_blank" rel="noreferrer">
+                Open file preview
+              </a>
+            ) : (
+              <p className="muted-copy">Preview becomes available after upload processing completes.</p>
+            )}
           </Card>
         </section>
       )}
@@ -125,9 +131,7 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
       <Card>
         <div className="section-header">
           <h2 className="section-title">Version history</h2>
-          <Button size="sm" onClick={() => setEditingVersion("new")}>
-            Add version
-          </Button>
+          <span className="muted-copy">Versions are created automatically from editor and QA workflow uploads.</span>
         </div>
         {versions.loading ? (
           <LoadingBlock />
@@ -135,149 +139,17 @@ export function AssetDetailPage({ assetId }: { assetId: string }) {
           <DataTable
             rows={versions.data.items}
             rowKey={(row, index) => getId(row) || String(index)}
-            empty="No versions found."
+            empty="No versions recorded yet."
             columns={[
               { key: "version", label: "Version", render: (row) => `v${textValue(row.versionNumber)}` },
               { key: "file", label: "File", render: (row) => <strong>{textValue(row.fileName)}</strong> },
+              { key: "mime", label: "Type", render: (row) => textValue(row.mimeType) },
               { key: "notes", label: "Notes", render: (row) => textValue(row.notes) },
               { key: "created", label: "Created", render: (row) => dateValue(row.createdAt) },
-              {
-                key: "actions",
-                label: "",
-                render: (row) => (
-                  <div className="row-actions">
-                    <Button size="sm" variant="secondary" onClick={() => setEditingVersion(row)}>
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => void deleteVersion(getId(row))}>
-                      Delete
-                    </Button>
-                  </div>
-                ),
-              },
             ]}
           />
         )}
       </Card>
-
-      <VersionModal
-        value={editingVersion}
-        assetId={assetId}
-        onClose={() => setEditingVersion(null)}
-        onSaved={() => {
-          setEditingVersion(null);
-          setMessage("Version saved.");
-          versions.reload();
-        }}
-        onError={setActionError}
-      />
     </div>
-  );
-}
-
-function VersionModal({
-  value,
-  assetId,
-  onClose,
-  onSaved,
-  onError,
-}: {
-  value: ApiRecord | "new" | null;
-  assetId: string;
-  onClose: () => void;
-  onSaved: () => void;
-  onError: (message: string | null) => void;
-}) {
-  const [form, setForm] = useState({
-    fileName: "",
-    mimeType: "image/jpeg",
-    storageProvider: "CLOUDFLARE_R2",
-    storageKey: "",
-    storageUrl: "",
-    notes: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const editing = value && value !== "new";
-
-  useEffect(() => {
-    if (value === "new") {
-      setForm({
-        fileName: "",
-        mimeType: "image/jpeg",
-        storageProvider: "CLOUDFLARE_R2",
-        storageKey: "",
-        storageUrl: "",
-        notes: "",
-      });
-    } else if (value) {
-      setForm({
-        fileName: textValue(value.fileName, ""),
-        mimeType: textValue(value.mimeType, "image/jpeg"),
-        storageProvider: textValue(value.storageProvider, "CLOUDFLARE_R2"),
-        storageKey: textValue(value.storageKey, ""),
-        storageUrl: textValue(value.storageUrl, ""),
-        notes: textValue(value.notes, ""),
-      });
-    }
-  }, [value]);
-
-  if (!value) {
-    return null;
-  }
-
-  function update(key: keyof typeof form, next: string) {
-    setForm((current) => ({ ...current, [key]: next }));
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitting(true);
-    onError(null);
-
-    try {
-      if (editing) {
-        await apiRequest(`/assets/${assetId}/versions/${getId(value)}`, {
-          method: "PATCH",
-          body: compactPayload(form),
-        });
-      } else {
-        await apiRequest(`/assets/${assetId}/versions`, {
-          method: "POST",
-          body: compactPayload(form),
-        });
-      }
-      onSaved();
-    } catch (caught) {
-      onError(caught instanceof Error ? caught.message : "Version save failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Modal open={Boolean(value)} title={editing ? "Edit version" : "Add version"} onClose={onClose}>
-      <FormShell onSubmit={submit}>
-        <TextField label="File name" value={form.fileName} onChange={(event) => update("fileName", event.target.value)} required />
-        <TextField label="MIME type" value={form.mimeType} onChange={(event) => update("mimeType", event.target.value)} required />
-        <SelectField label="Provider" value={form.storageProvider} onChange={(event) => update("storageProvider", event.target.value)}>
-          {versionProviders.map((provider) => (
-            <option key={provider} value={provider}>
-              {provider}
-            </option>
-          ))}
-        </SelectField>
-        <TextField label="Storage key" value={form.storageKey} onChange={(event) => update("storageKey", event.target.value)} required />
-        <TextField label="Storage URL" value={form.storageUrl} onChange={(event) => update("storageUrl", event.target.value)} />
-        <TextAreaField label="Notes" value={form.notes} onChange={(value) => update("notes", value)} />
-        <FormActions>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? "Saving" : "Save version"}
-          </Button>
-        </FormActions>
-      </FormShell>
-    </Modal>
   );
 }

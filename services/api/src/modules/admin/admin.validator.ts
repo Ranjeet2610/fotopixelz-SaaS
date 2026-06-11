@@ -25,3 +25,28 @@ export const updateAdminUserRoleSchema = z.object({
 export const updateAdminUserStatusSchema = z.object({
   isActive: z.boolean()
 })
+
+export const createUserSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'QA', 'CLIENT'])
+})
+
+export const createStaffUserSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'EDITOR', 'QA'])
+})
+
+export const createStaffUserSchemaAdmin = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  role: z.enum(['EDITOR', 'QA', 'CLIENT'])
+})
+
+export const updateAdminUserRoleSchemaAdmin = z.object({
+  role: z.enum(['ADMIN', 'CLIENT', 'EDITOR', 'QA'])
+})

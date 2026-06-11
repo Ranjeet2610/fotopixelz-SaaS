@@ -2,6 +2,11 @@ import type { Prisma } from '@prisma/client'
 import { requireRole } from '@repo/auth'
 import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
+import { countCurrentReadyDeliverables } from '../assets/assets.service'
+import { buildQuote } from '../pricing/pricing.service'
+import { calculateOrderBilling } from './order-billing'
+import { assertAllowedStatusTransition } from './order-status-transitions'
+import { recordOrderStatusChange, recordWorkflowEvent } from '../workflow/workflow.service'
 import type {
   AssignEditorInput,
   AssignQaInput,
@@ -9,6 +14,7 @@ import type {
   ListOrdersQuery,
   OrderStatus,
   RequestContext,
+  RequestOrderRevisionInput,
   UpdateOrderInput,
   UpdateOrderStatusInput
 } from './orders.types'
@@ -17,7 +23,57 @@ const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'] as const
 const CREATE_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN'] as const
 const CLIENT_STATUS_UPDATES: readonly OrderStatus[] = ['DRAFT', 'UPLOADED', 'PENDING', 'CANCELLED']
 const EDITOR_STATUS_UPDATES: readonly OrderStatus[] = ['IN_PROGRESS', 'READY_FOR_QA']
-const QA_STATUS_UPDATES: readonly OrderStatus[] = ['REVISION_REQUIRED', 'APPROVED']
+const QA_STATUS_UPDATES: readonly OrderStatus[] = ['DELIVERED', 'REVISION_REQUIRED']
+const ASSIGNABLE_ORDER_STATUSES: readonly OrderStatus[] = ['PENDING']
+const QA_ASSIGNABLE_STATUSES: readonly OrderStatus[] = [
+  'PENDING',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'READY_FOR_QA',
+  'REVISION_REQUIRED'
+]
+
+const orderItemSelect = {
+  id: true,
+  serviceId: true,
+  quantity: true,
+  unitPrice: true,
+  subtotal: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+  service: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      basePrice: true,
+      categoryId: true
+    }
+  }
+} as const
+
+const orderAddonSelect = {
+  id: true,
+  addonId: true,
+  quantity: true,
+  unitPrice: true,
+  pricingType: true,
+  subtotal: true,
+  credits: true,
+  createdAt: true,
+  updatedAt: true,
+  addon: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      price: true,
+      pricingType: true,
+      credits: true
+    }
+  }
+} as const
 
 const orderSelect = {
   id: true,
@@ -36,6 +92,8 @@ const orderSelect = {
   currency: true,
   dueDate: true,
   dueAt: true,
+  reviewRound: true,
+  deliverableVersion: true,
   isDeleted: true,
   createdAt: true,
   updatedAt: true,
@@ -54,6 +112,14 @@ const orderSelect = {
       email: true,
       role: true
     }
+  },
+  items: {
+    select: orderItemSelect,
+    orderBy: { createdAt: 'asc' as const }
+  },
+  addons: {
+    select: orderAddonSelect,
+    orderBy: { createdAt: 'asc' as const }
   }
 } as const
 
@@ -102,23 +168,75 @@ export async function createOrder(context: RequestContext, input: CreateOrderInp
   await ensureOrganizationAccess(context, input.organizationId)
   await ensureCategoryExists(input.categoryId)
 
-  return prisma.order.create({
+  const quote = await buildQuote({
+    organizationId: input.organizationId,
+    items: mapItemsForQuote(input.items, context),
+    addons: input.addons ?? [],
+    allowManualPricing: isAdmin(context),
+    manualTotalAmount: isAdmin(context) ? input.totalAmount : undefined
+  })
+
+  const hasCatalogLines = quote.items.length > 0 || quote.addons.length > 0
+  const totalImages = hasCatalogLines ? quote.totalImageCount : input.totalImages
+  const creditsUsed = hasCatalogLines ? quote.creditsUsed : input.creditsUsed
+
+  const order = await prisma.order.create({
     data: {
       organizationId: input.organizationId,
       createdById: context.userId,
       categoryId: input.categoryId ?? null,
       title: input.title,
       instructions: input.instructions ?? null,
-      totalImages: input.totalImages,
-      creditsUsed: input.creditsUsed,
-      totalAmount: input.totalAmount ?? 0,
+      totalImages,
+      creditsUsed,
+      totalAmount: quote.grandTotal,
+      currency: quote.currency,
       priority: input.priority,
       dueDate: input.dueDate ?? null,
       dueAt: input.dueDate ?? null,
-      status: 'DRAFT'
+      status: 'DRAFT',
+      ...(quote.items.length > 0
+        ? {
+            items: {
+              create: quote.items.map((item) => ({
+                serviceId: item.serviceId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                notes: item.notes
+              }))
+            }
+          }
+        : {}),
+      ...(quote.addons.length > 0
+        ? {
+            addons: {
+              create: quote.addons.map((addon) => ({
+                addonId: addon.addonId,
+                quantity: addon.quantity,
+                unitPrice: addon.unitPrice,
+                pricingType: addon.pricingType,
+                subtotal: addon.subtotal,
+                credits: addon.credits
+              }))
+            }
+          }
+        : {})
     },
     select: orderSelect
   })
+
+  await recordWorkflowEvent({
+    orderId: order.id,
+    actorId: context.userId,
+    eventType: 'ORDER_CREATED',
+    payload: {
+      title: order.title,
+      status: order.status
+    }
+  })
+
+  return order
 }
 
 export async function updateOrder(context: RequestContext, orderId: string, input: UpdateOrderInput) {
@@ -134,17 +252,85 @@ export async function updateOrder(context: RequestContext, orderId: string, inpu
 
   await ensureCategoryExists(input.categoryId === null ? undefined : input.categoryId)
 
+  const pricingChanged = input.items !== undefined || input.addons !== undefined
+  if (pricingChanged && order.status !== 'DRAFT') {
+    throw new AppError(400, 'Order pricing lines can only be modified while in DRAFT status')
+  }
+
+  let quoteUpdate: Awaited<ReturnType<typeof buildQuote>> | undefined
+  if (pricingChanged || (isAdmin(context) && input.totalAmount !== undefined)) {
+    const nextItems =
+      input.items ??
+      order.items.map((item) => ({
+        serviceId: item.serviceId,
+        quantity: item.quantity,
+        unitPrice: isAdmin(context) ? item.unitPrice : undefined,
+        notes: item.notes ?? undefined
+      }))
+    const nextAddons =
+      input.addons ??
+      order.addons.map((addon) => ({
+        addonId: addon.addonId,
+        quantity: addon.quantity
+      }))
+
+    quoteUpdate = await buildQuote({
+      organizationId: order.organizationId,
+      items: mapItemsForQuote(nextItems, context),
+      addons: nextAddons,
+      allowManualPricing: isAdmin(context),
+      manualTotalAmount: isAdmin(context) ? input.totalAmount : undefined
+    })
+  }
+
+  const hasCatalogLines = quoteUpdate
+    ? quoteUpdate.items.length > 0 || quoteUpdate.addons.length > 0
+    : order.items.length > 0 || order.addons.length > 0
+
   return prisma.order.update({
     where: { id: order.id },
     data: {
       ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
-      ...(input.totalImages !== undefined ? { totalImages: input.totalImages } : {}),
-      ...(input.creditsUsed !== undefined ? { creditsUsed: input.creditsUsed } : {}),
-      ...(input.totalAmount !== undefined ? { totalAmount: input.totalAmount } : {}),
+      ...(quoteUpdate && hasCatalogLines
+        ? { totalImages: quoteUpdate.totalImageCount, creditsUsed: quoteUpdate.creditsUsed }
+        : {
+            ...(input.totalImages !== undefined ? { totalImages: input.totalImages } : {}),
+            ...(input.creditsUsed !== undefined ? { creditsUsed: input.creditsUsed } : {})
+          }),
+      ...(quoteUpdate
+        ? { totalAmount: quoteUpdate.grandTotal, currency: quoteUpdate.currency }
+        : isAdmin(context) && input.totalAmount !== undefined
+          ? { totalAmount: input.totalAmount }
+          : {}),
       ...(input.priority !== undefined ? { priority: input.priority } : {}),
-      ...(input.dueDate !== undefined ? { dueDate: input.dueDate, dueAt: input.dueDate } : {})
+      ...(input.dueDate !== undefined ? { dueDate: input.dueDate, dueAt: input.dueDate } : {}),
+      ...(quoteUpdate
+        ? {
+            items: {
+              deleteMany: {},
+              create: quoteUpdate.items.map((item) => ({
+                serviceId: item.serviceId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                subtotal: item.subtotal,
+                notes: item.notes
+              }))
+            },
+            addons: {
+              deleteMany: {},
+              create: quoteUpdate.addons.map((addon) => ({
+                addonId: addon.addonId,
+                quantity: addon.quantity,
+                unitPrice: addon.unitPrice,
+                pricingType: addon.pricingType,
+                subtotal: addon.subtotal,
+                credits: addon.credits
+              }))
+            }
+          }
+        : {})
     },
     select: orderSelect
   })
@@ -167,11 +353,174 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
   const order = await findActiveOrder(input.orderId)
   await ensureCanUpdateStatus(context, order, input.status)
 
-  return prisma.order.update({
-    where: { id: order.id },
-    data: { status: input.status },
-    select: orderSelect
+  if (
+    !isAdmin(context) &&
+    order.status !== input.status &&
+    (context.role === 'EDITOR' || context.role === 'QA')
+  ) {
+    try {
+      assertAllowedStatusTransition(context.role, order.status, input.status)
+    } catch (error) {
+      throw new AppError(
+        400,
+        error instanceof Error ? error.message : 'Invalid status transition'
+      )
+    }
+  }
+
+  if (
+    context.role === 'EDITOR' &&
+    input.status === 'READY_FOR_QA' &&
+    order.status !== 'READY_FOR_QA' &&
+    !order.assignedQaId
+  ) {
+    throw new AppError(400, 'A QA reviewer must be assigned before sending this order to QA')
+  }
+
+  if (
+    context.role === 'EDITOR' &&
+    input.status === 'READY_FOR_QA' &&
+    order.status !== 'READY_FOR_QA'
+  ) {
+    const readyCount = await countCurrentReadyDeliverables(order.id, order.reviewRound)
+    if (readyCount === 0) {
+      throw new AppError(
+        400,
+        order.status === 'REVISION_REQUIRED'
+          ? 'Upload revised deliverables before submitting to QA.'
+          : 'Upload at least one deliverable before submitting to QA.'
+      )
+    }
+  }
+
+  if (input.status === 'DELIVERED' && order.status !== 'DELIVERED') {
+    if (!isAdmin(context) && order.status !== 'READY_FOR_QA') {
+      throw new AppError(400, 'Order must pass QA review before it can be delivered')
+    }
+    await ensureOrderHasDeliverables(order.id)
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const nextOrder = await tx.order.update({
+      where: { id: order.id },
+      data: { status: input.status },
+      select: orderSelect
+    })
+
+    if (order.status !== input.status && input.status === 'DELIVERED') {
+      await tx.asset.updateMany({
+        where: {
+          orderId: order.id,
+          isDeleted: false,
+          isCurrent: true
+        },
+        data: {
+          status: 'DELIVERED'
+        }
+      })
+    }
+
+    return nextOrder
   })
+
+  if (order.status !== input.status) {
+    await recordOrderStatusChange({
+      orderId: order.id,
+      actorId: context.userId,
+      fromStatus: order.status,
+      toStatus: input.status
+    })
+  }
+
+  return updated
+}
+
+export async function submitOrder(context: RequestContext, orderId: string) {
+  if (context.role !== 'CLIENT') {
+    throw new AppError(403, 'Forbidden')
+  }
+
+  const order = await findActiveOrder(orderId)
+  await ensureOrganizationAccess(context, order.organizationId)
+
+  if (order.status !== 'UPLOADED') {
+    throw new AppError(400, 'Order must be uploaded before submission')
+  }
+
+  const uploadCount = await prisma.upload.count({
+    where: {
+      orderId: order.id,
+      status: 'UPLOADED'
+    }
+  })
+
+  if (uploadCount === 0) {
+    throw new AppError(400, 'Upload at least one image before submitting')
+  }
+
+  const organization = await prisma.organization.findUnique({
+    where: { id: order.organizationId },
+    select: {
+      id: true,
+      freeImageCredits: true,
+      usedImageCredits: true
+    }
+  })
+
+  if (!organization) {
+    throw new AppError(404, 'Organization not found')
+  }
+
+  const creditsRemaining = organization.freeImageCredits - organization.usedImageCredits
+  const billing = calculateOrderBilling({
+    uploadedImages: uploadCount,
+    availableCredits: creditsRemaining,
+    serviceLines: order.items.map((item) => ({
+      quantity: item.quantity,
+      unitPrice: item.unitPrice
+    })),
+    fallbackExpectedImages: order.totalImages
+  })
+
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    if (billing.freeCreditsUsed > 0) {
+      await tx.organization.update({
+        where: { id: organization.id },
+        data: {
+          usedImageCredits: {
+            increment: billing.freeCreditsUsed
+          }
+        }
+      })
+    }
+
+    return tx.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'PENDING',
+        creditsUsed: billing.freeCreditsUsed,
+        totalImages: uploadCount,
+        totalAmount: billing.amountDue
+      },
+      select: orderSelect
+    })
+  })
+
+  await recordOrderStatusChange({
+    orderId: order.id,
+    actorId: context.userId,
+    fromStatus: order.status,
+    toStatus: 'PENDING',
+    note: 'Order submitted by client'
+  })
+
+  return {
+    order: updatedOrder,
+    billing,
+    amountDue: billing.amountDue,
+    imageCreditsApplied: billing.freeCreditsUsed,
+    paymentRequired: billing.paymentRequired
+  }
 }
 
 export async function assignEditor(context: RequestContext, input: AssignEditorInput) {
@@ -182,7 +531,12 @@ export async function assignEditor(context: RequestContext, input: AssignEditorI
   const order = await findActiveOrder(input.orderId)
   await ensureUserRole(input.editorId, 'EDITOR')
 
-  return prisma.order.update({
+  if (!ASSIGNABLE_ORDER_STATUSES.includes(order.status)) {
+    throw new AppError(400, 'Editor can only be assigned while order is pending')
+  }
+
+  const previousStatus = order.status
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: {
       assignedEditorId: input.editorId,
@@ -190,6 +544,19 @@ export async function assignEditor(context: RequestContext, input: AssignEditorI
     },
     select: orderSelect
   })
+
+  await recordWorkflowEvent({
+    orderId: order.id,
+    actorId: context.userId,
+    eventType: 'EDITOR_ASSIGNED',
+    payload: {
+      editorId: input.editorId,
+      fromStatus: previousStatus,
+      toStatus: 'ASSIGNED'
+    }
+  })
+
+  return updated
 }
 
 export async function assignQa(context: RequestContext, input: AssignQaInput) {
@@ -200,13 +567,29 @@ export async function assignQa(context: RequestContext, input: AssignQaInput) {
   const order = await findActiveOrder(input.orderId)
   await ensureUserRole(input.qaId, 'QA')
 
-  return prisma.order.update({
+  if (!QA_ASSIGNABLE_STATUSES.includes(order.status)) {
+    throw new AppError(400, 'QA cannot be assigned after delivery')
+  }
+
+  const updated = await prisma.order.update({
     where: { id: order.id },
     data: {
       assignedQaId: input.qaId
     },
     select: orderSelect
   })
+
+  await recordWorkflowEvent({
+    orderId: order.id,
+    actorId: context.userId,
+    eventType: 'QA_ASSIGNED',
+    payload: {
+      qaId: input.qaId,
+      orderStatus: order.status
+    }
+  })
+
+  return updated
 }
 
 async function buildListWhere(context: RequestContext, query: ListOrdersQuery): Promise<Prisma.OrderWhereInput> {
@@ -223,6 +606,13 @@ async function buildListWhere(context: RequestContext, query: ListOrdersQuery): 
 
     if (query.scope === 'editor') {
       return { ...base, assignedEditorId: { not: null } }
+    }
+
+    if (!query.status) {
+      return {
+        ...base,
+        status: { notIn: ['DRAFT', 'UPLOADED'] }
+      }
     }
 
     return base
@@ -243,11 +633,19 @@ async function buildListWhere(context: RequestContext, query: ListOrdersQuery): 
   }
 
   if (context.role === 'EDITOR') {
-    return { ...base, assignedEditorId: context.userId }
+    return {
+      ...base,
+      assignedEditorId: context.userId,
+      ...(!query.status ? { status: { notIn: ['DRAFT', 'UPLOADED'] } } : {})
+    }
   }
 
   if (context.role === 'QA') {
-    return { ...base, assignedQaId: context.userId }
+    return {
+      ...base,
+      assignedQaId: context.userId,
+      ...(!query.status ? { status: { in: ['READY_FOR_QA', 'REVISION_REQUIRED', 'DELIVERED'] } } : {})
+    }
   }
 
   return { ...base, id: '__never__' }
@@ -374,6 +772,79 @@ async function ensureCategoryExists(categoryId: string | undefined) {
   }
 }
 
+export async function requestOrderRevision(context: RequestContext, input: RequestOrderRevisionInput) {
+  const order = await findActiveOrder(input.orderId)
+
+  if (context.role !== 'QA' || order.assignedQaId !== context.userId) {
+    throw new AppError(403, 'Forbidden')
+  }
+
+  if (order.status !== 'READY_FOR_QA') {
+    throw new AppError(400, 'Revisions can only be requested while the order is ready for QA')
+  }
+
+  const nextReviewRound = order.reviewRound + 1
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.asset.updateMany({
+      where: {
+        orderId: order.id,
+        reviewRound: order.reviewRound,
+        isDeleted: false
+      },
+      data: {
+        isCurrent: false,
+        qaNotes: {
+          title: input.title,
+          comment: input.comment,
+          reviewRound: order.reviewRound,
+          requestedAt: new Date().toISOString()
+        }
+      }
+    })
+
+    return tx.order.update({
+      where: { id: order.id },
+      data: {
+        status: 'REVISION_REQUIRED',
+        reviewRound: nextReviewRound
+      },
+      select: orderSelect
+    })
+  })
+
+  await recordWorkflowEvent({
+    orderId: order.id,
+    actorId: context.userId,
+    eventType: 'REVISION_REQUESTED',
+    payload: {
+      title: input.title,
+      comment: input.comment,
+      reviewRound: order.reviewRound,
+      nextReviewRound,
+      fromStatus: 'READY_FOR_QA',
+      toStatus: 'REVISION_REQUIRED'
+    }
+  })
+
+  return updated
+}
+
+async function ensureOrderHasDeliverables(orderId: string) {
+  const assetCount = await prisma.asset.count({
+    where: {
+      orderId,
+      isDeleted: false,
+      isCurrent: true,
+      status: { in: ['READY', 'DELIVERED'] }
+    }
+  })
+
+  if (assetCount === 0) {
+    throw new AppError(400, 'At least one current deliverable is required before delivery.')
+  }
+}
+
 async function ensureUserRole(userId: string, role: 'EDITOR' | 'QA') {
   const user = await prisma.user.findFirst({
     where: {
@@ -396,4 +867,20 @@ async function getUserOrganizationIds(userId: string) {
   })
 
   return memberships.map((membership) => membership.organizationId)
+}
+
+function mapItemsForQuote(
+  items: CreateOrderInput['items'],
+  context: RequestContext
+): NonNullable<CreateOrderInput['items']> {
+  if (!items || items.length === 0) {
+    return []
+  }
+
+  return items.map((item) => ({
+    serviceId: item.serviceId,
+    quantity: item.quantity,
+    unitPrice: isAdmin(context) ? item.unitPrice : undefined,
+    notes: item.notes
+  }))
 }

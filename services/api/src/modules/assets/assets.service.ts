@@ -2,12 +2,19 @@ import type { Prisma } from '@prisma/client'
 import { requireRole } from '@repo/auth'
 import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
+import {
+  createDeliverableStorageKey,
+  getStorageService,
+  storageConfig
+} from '../../integrations/storage'
+import { recordWorkflowEvent } from '../workflow/workflow.service'
 import type {
+  CompleteDeliverableInput,
   CreateAssetInput,
   CreateAssetVersionInput,
+  DeliverablePresignedUrlInput,
   ListAssetsQuery,
   RequestContext,
-  StorageProvider,
   UpdateAssetInput,
   UpdateAssetVersionInput
 } from './assets.types'
@@ -27,15 +34,31 @@ const assetSelect = {
   storageKey: true,
   storageUrl: true,
   status: true,
+  version: true,
+  reviewRound: true,
+  isCurrent: true,
+  uploadedById: true,
+  qaNotes: true,
+  replacesAssetId: true,
   createdById: true,
   isDeleted: true,
   createdAt: true,
   updatedAt: true,
+  uploadedBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true
+    }
+  },
   order: {
     select: {
       id: true,
       title: true,
       status: true,
+      reviewRound: true,
+      deliverableVersion: true,
+      updatedAt: true,
       organizationId: true,
       createdById: true,
       assignedEditorId: true,
@@ -75,12 +98,6 @@ function canManageVersion(context: RequestContext) {
   return requireRole(context.role, VERSION_MANAGER_ROLES)
 }
 
-function mockStorageBaseUrl(provider: StorageProvider) {
-  return provider === 'AWS_S3'
-    ? 'https://mock-s3.local'
-    : 'https://mock-r2.local'
-}
-
 export function getAssetsStatus() {
   return { module: 'assets', status: 'ok' as const }
 }
@@ -115,14 +132,11 @@ export async function getAsset(context: RequestContext, assetId: string) {
 }
 
 export async function createAsset(context: RequestContext, input: CreateAssetInput) {
-  if (!isAdmin(context)) {
-    throw new AppError(403, 'Forbidden')
-  }
-
   const order = await ensureOrderForAsset(input.organizationId, input.orderId)
+  await ensureCanCreateAsset(context, order)
   await ensureUploadForAsset(input.organizationId, input.orderId, input.uploadId)
 
-  return prisma.asset.create({
+  const asset = await prisma.asset.create({
     data: {
       organizationId: input.organizationId,
       orderId: order.id,
@@ -139,6 +153,19 @@ export async function createAsset(context: RequestContext, input: CreateAssetInp
     },
     select: assetSelect
   })
+
+  await recordWorkflowEvent({
+    orderId: order.id,
+    actorId: context.userId,
+    eventType: 'ASSET_UPLOADED',
+    payload: {
+      assetId: asset.id,
+      assetName: asset.name,
+      fileName: asset.fileName
+    }
+  })
+
+  return asset
 }
 
 export async function updateAsset(context: RequestContext, assetId: string, input: UpdateAssetInput) {
@@ -161,11 +188,8 @@ export async function updateAsset(context: RequestContext, assetId: string, inpu
 }
 
 export async function deleteAsset(context: RequestContext, assetId: string) {
-  if (!isAdmin(context)) {
-    throw new AppError(403, 'Forbidden')
-  }
-
   const asset = await findActiveAsset(assetId)
+  await ensureCanDeleteAsset(context, asset)
 
   await prisma.asset.update({
     where: { id: asset.id },
@@ -251,15 +275,174 @@ export async function deleteAssetVersion(context: RequestContext, assetId: strin
   })
 }
 
+export async function createDeliverablePresignedUrl(
+  context: RequestContext,
+  input: DeliverablePresignedUrlInput
+) {
+  const order = await ensureOrderForAsset(input.organizationId, input.orderId)
+  await ensureCanCreateAsset(context, order)
+
+  const storage = getStorageService()
+  const storageKey = createDeliverableStorageKey({
+    organizationId: input.organizationId,
+    orderId: input.orderId,
+    fileName: input.fileName
+  })
+
+  const presigned = await storage.createPresignedPutUrl({
+    storageKey,
+    mimeType: input.mimeType,
+    expiresInSeconds: storageConfig.uploadExpirySeconds
+  })
+
+  const asset = await prisma.asset.create({
+    data: {
+      organizationId: input.organizationId,
+      orderId: order.id,
+      uploadId: input.uploadId ?? null,
+      name: input.name ?? input.fileName,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      storageProvider: storage.provider,
+      storageKey: presigned.storageKey,
+      storageUrl: presigned.storageUrl,
+      originalUrl: presigned.storageUrl,
+      status: 'PENDING',
+      reviewRound: order.reviewRound,
+      isCurrent: false,
+      createdById: context.userId
+    },
+    select: assetSelect
+  })
+
+  return {
+    asset,
+    presigned: {
+      provider: presigned.provider,
+      method: 'PUT' as const,
+      uploadUrl: presigned.uploadUrl,
+      storageKey: presigned.storageKey,
+      storageUrl: presigned.storageUrl,
+      bucket: presigned.bucket,
+      expiresInSeconds: presigned.expiresInSeconds,
+      headers: presigned.headers
+    }
+  }
+}
+
+export async function completeDeliverableUpload(
+  context: RequestContext,
+  input: CompleteDeliverableInput
+) {
+  const asset = await findActiveAsset(input.assetId)
+  await ensureCanCreateAsset(context, {
+    id: asset.orderId,
+    status: asset.order.status,
+    reviewRound: asset.order.reviewRound,
+    deliverableVersion: asset.order.deliverableVersion,
+    assignedEditorId: asset.order.assignedEditorId,
+    assignedQaId: asset.order.assignedQaId
+  })
+
+  if (asset.status === 'READY' || asset.status === 'DELIVERED') {
+    return asset
+  }
+
+  const storageKey = input.storageKey ?? asset.storageKey
+  const storage = getStorageService()
+  const head = await storage.headObject(storageKey)
+  const verified = head.exists && head.contentLength > 0
+
+  if (!verified) {
+    throw new AppError(400, 'Deliverable upload verification failed')
+  }
+
+  const updatedAsset = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: asset.orderId },
+      select: {
+        id: true,
+        reviewRound: true,
+        deliverableVersion: true
+      }
+    })
+
+    if (!order) {
+      throw new AppError(404, 'Order not found')
+    }
+
+    const currentBatchCount = await tx.asset.count({
+      where: {
+        orderId: order.id,
+        reviewRound: order.reviewRound,
+        isCurrent: true,
+        isDeleted: false,
+        status: 'READY'
+      }
+    })
+
+    let nextVersion = order.deliverableVersion
+    if (currentBatchCount === 0) {
+      nextVersion = order.deliverableVersion + 1
+      await tx.order.update({
+        where: { id: order.id },
+        data: { deliverableVersion: nextVersion }
+      })
+      await tx.asset.updateMany({
+        where: {
+          orderId: order.id,
+          isDeleted: false,
+          id: { not: asset.id }
+        },
+        data: { isCurrent: false }
+      })
+    }
+
+    return tx.asset.update({
+      where: { id: asset.id },
+      data: {
+        status: 'READY',
+        version: nextVersion,
+        reviewRound: order.reviewRound,
+        isCurrent: true,
+        uploadedById: context.userId,
+        storageKey,
+        storageUrl: input.storageUrl ?? asset.storageUrl ?? storage.getObjectUrl(storageKey),
+        originalUrl: input.storageUrl ?? asset.storageUrl ?? storage.getObjectUrl(storageKey)
+      },
+      select: assetSelect
+    })
+  })
+
+  await recordWorkflowEvent({
+    orderId: asset.orderId,
+    actorId: context.userId,
+    eventType: 'DELIVERABLE_VERSION_UPLOADED',
+    payload: {
+      assetId: updatedAsset.id,
+      assetName: updatedAsset.name,
+      fileName: updatedAsset.fileName,
+      version: updatedAsset.version,
+      reviewRound: updatedAsset.reviewRound
+    }
+  })
+
+  return updatedAsset
+}
+
 export async function getAssetDownloadUrl(context: RequestContext, assetId: string) {
   const asset = await findActiveAsset(assetId)
   await ensureCanViewAsset(context, asset)
 
-  const baseUrl = asset.storageUrl ?? `${mockStorageBaseUrl(asset.storageProvider)}/${asset.storageKey}`
+  const storage = getStorageService()
+  const signed = await storage.createPresignedGetUrl({
+    storageKey: asset.storageKey,
+    expiresInSeconds: storageConfig.downloadExpirySeconds
+  })
 
   return {
-    downloadUrl: `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mockDownload=true`,
-    expiresIn: 900
+    downloadUrl: signed.downloadUrl,
+    expiresIn: signed.expiresInSeconds
   }
 }
 
@@ -268,7 +451,10 @@ async function buildListWhere(context: RequestContext, query: ListAssetsQuery): 
     isDeleted: false,
     ...(query.organizationId ? { organizationId: query.organizationId } : {}),
     ...(query.orderId ? { orderId: query.orderId } : {}),
-    ...(query.status ? { status: query.status } : {})
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.isCurrent !== undefined ? { isCurrent: query.isCurrent } : {}),
+    ...(query.reviewRound ? { reviewRound: query.reviewRound } : {}),
+    ...(query.version ? { version: query.version } : {})
   }
 
   if (isAdmin(context)) {
@@ -276,15 +462,31 @@ async function buildListWhere(context: RequestContext, query: ListAssetsQuery): 
   }
 
   if (context.role === 'CLIENT') {
+    const deliveredOrderFilter = {
+      isDeleted: false,
+      status: 'DELIVERED' as const
+    }
+
+    const clientBase = {
+      ...base,
+      isCurrent: true,
+      status: 'DELIVERED' as const
+    }
+
     if (query.organizationId) {
       await ensureOrganizationAccess(context, query.organizationId)
-      return base
+      return {
+        ...clientBase,
+        organizationId: query.organizationId,
+        order: deliveredOrderFilter
+      }
     }
 
     const organizationIds = await getUserOrganizationIds(context.userId)
     return {
-      ...base,
-      organizationId: { in: organizationIds }
+      ...clientBase,
+      organizationId: { in: organizationIds },
+      order: deliveredOrderFilter
     }
   }
 
@@ -338,6 +540,11 @@ async function ensureCanViewAsset(
 
   if (context.role === 'CLIENT') {
     await ensureOrganizationAccess(context, asset.organizationId)
+
+    if (asset.order.status !== 'DELIVERED') {
+      throw new AppError(404, 'Asset not found')
+    }
+
     return
   }
 
@@ -382,7 +589,14 @@ async function ensureOrderForAsset(organizationId: string, orderId: string) {
       organizationId,
       isDeleted: false
     },
-    select: { id: true }
+    select: {
+      id: true,
+      status: true,
+      reviewRound: true,
+      deliverableVersion: true,
+      assignedEditorId: true,
+      assignedQaId: true
+    }
   })
 
   if (!order) {
@@ -390,6 +604,59 @@ async function ensureOrderForAsset(organizationId: string, orderId: string) {
   }
 
   return order
+}
+
+export async function countCurrentReadyDeliverables(orderId: string, reviewRound?: number) {
+  return prisma.asset.count({
+    where: {
+      orderId,
+      isDeleted: false,
+      isCurrent: true,
+      status: 'READY',
+      ...(reviewRound ? { reviewRound } : {})
+    }
+  })
+}
+
+async function ensureCanCreateAsset(
+  context: RequestContext,
+  order: Awaited<ReturnType<typeof ensureOrderForAsset>>
+) {
+  if (isAdmin(context)) {
+    return
+  }
+
+  if (context.role === 'EDITOR' && order.assignedEditorId === context.userId) {
+    if (!['ASSIGNED', 'IN_PROGRESS', 'REVISION_REQUIRED'].includes(order.status)) {
+      throw new AppError(400, 'Deliverables can only be uploaded while the order is in production')
+    }
+    return
+  }
+
+  throw new AppError(403, 'Forbidden')
+}
+
+async function ensureCanDeleteAsset(
+  context: RequestContext,
+  asset: Awaited<ReturnType<typeof findActiveAsset>>
+) {
+  if (isAdmin(context)) {
+    return
+  }
+
+  if (context.role === 'EDITOR' && asset.order.assignedEditorId === context.userId) {
+    if (!['ASSIGNED', 'IN_PROGRESS', 'REVISION_REQUIRED'].includes(asset.order.status)) {
+      throw new AppError(400, 'Deliverables can only be removed while the order is in production')
+    }
+
+    if (asset.status === 'DELIVERED') {
+      throw new AppError(400, 'Delivered assets cannot be removed')
+    }
+
+    return
+  }
+
+  throw new AppError(403, 'Forbidden')
 }
 
 async function ensureUploadForAsset(organizationId: string, orderId: string, uploadId: string | undefined) {

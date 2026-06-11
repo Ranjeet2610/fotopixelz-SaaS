@@ -147,15 +147,37 @@ export async function updateMyBilling(
 }
 
 export async function getMyCredits(userId: string): Promise<CreditsDTO> {
-  const userExists = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true }
+  const memberships = await prisma.membership.findMany({
+    where: { userId },
+    select: {
+      organization: {
+        select: {
+          freeImageCredits: true,
+          usedImageCredits: true
+        }
+      }
+    }
   })
 
-  if (!userExists) {
-    throw new AppError(404, 'User not found')
+  if (memberships.length === 0) {
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    })
+
+    if (!userExists) {
+      throw new AppError(404, 'User not found')
+    }
+
+    return { balance: 0 }
   }
 
-  return { balance: 0 }
+  const balance = memberships.reduce((total, membership) => {
+    const remaining =
+      membership.organization.freeImageCredits - membership.organization.usedImageCredits
+    return total + Math.max(0, remaining)
+  }, 0)
+
+  return { balance }
 }
 

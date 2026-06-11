@@ -4,7 +4,7 @@ export interface RegisterInput {
   name?: string
   email: string
   password: string
-  role?: AuthRole
+  organizationName?: string
 }
 
 export interface LoginInput {
@@ -28,8 +28,19 @@ export interface AuthUserDTO {
   role: AuthRole
 }
 
+export interface AuthOrganizationDTO {
+  id: string
+  name: string
+  slug: string
+  plan: "DEMO" | null
+  subscriptionStatus: "TRIAL" | "ACTIVE" | "EXPIRED" | "CANCELLED" | null
+  trialEndsAt: Date | null
+  freeImageCredits: number
+  usedImageCredits: number
+}
+
 export interface AuthResponse {
   token: string
   user: AuthUserDTO
+  organization?: AuthOrganizationDTO
 }
-

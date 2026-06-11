@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const roleSchema = z.enum(['CLIENT', 'EDITOR', 'QA', 'ADMIN', 'SUPER_ADMIN'])
+const roleSchema = z.enum(['OWNER', 'CLIENT', 'EDITOR', 'QA', 'ADMIN', 'SUPER_ADMIN'])
 
 export const organizationIdParamsSchema = z.object({
   organizationId: z.string().min(1)

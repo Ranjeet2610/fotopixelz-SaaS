@@ -33,7 +33,8 @@ export async function loginHandler(req: Request, res: Response) {
     return res.status(200).json({ success: true, data: result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed"
-    return res.status(401).json({ success: false, message })
+    const status = message === "Account is inactive" ? 403 : 401
+    return res.status(status).json({ success: false, message })
   }
 }
 

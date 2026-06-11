@@ -1,8 +1,9 @@
-import crypto from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { requireRole } from '@repo/auth'
 import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
+import { createUploadStorageKey, getStorageService, storageConfig } from '../../integrations/storage'
+import { isPreviewableImage } from './upload-image-utils'
 import type {
   CompleteUploadInput,
   CreateBatchUploadInput,
@@ -11,7 +12,6 @@ import type {
   ListUploadsQuery,
   PresignedUrlInput,
   RequestContext,
-  StorageProvider,
   UploadDTO
 } from './uploads.types'
 
@@ -36,28 +36,6 @@ const uploadSelect = {
 
 function isAdmin(context: RequestContext) {
   return requireRole(context.role, ADMIN_ROLES)
-}
-
-function sanitizeFileName(value: string) {
-  return value
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'upload'
-}
-
-function createStorageKey(input: {
-  organizationId: string
-  fileName: string
-  orderId?: string
-}) {
-  const scope = input.orderId ? `orders/${input.orderId}` : 'general'
-  return `uploads/${input.organizationId}/${scope}/${crypto.randomUUID()}-${sanitizeFileName(input.fileName)}`
-}
-
-function mockStorageBaseUrl(provider: StorageProvider) {
-  return provider === 'AWS_S3'
-    ? 'https://mock-s3.local'
-    : 'https://mock-r2.local'
 }
 
 export function getUploadsStatus() {
@@ -88,6 +66,7 @@ export async function listUploads(context: RequestContext, query: ListUploadsQue
 }
 
 export async function listUploadsByOrder(context: RequestContext, orderId: string) {
+  await ensureCanAccessOrderUploads(context, orderId)
   const where = await buildListWhere(context, { orderId, page: 1, limit: 100 })
 
   return prisma.upload.findMany({
@@ -110,9 +89,46 @@ export async function getUpload(context: RequestContext, uploadId: string): Prom
     throw new AppError(404, 'Upload not found')
   }
 
-  await ensureUploadAccess(context, upload.organizationId)
+  await ensureCanAccessUploadRecord(context, upload)
 
   return upload
+}
+
+export async function getUploadPreviewUrl(context: RequestContext, uploadId: string) {
+  const upload = await prisma.upload.findFirst({
+    where: {
+      id: uploadId,
+      status: { not: 'DELETED' }
+    },
+    select: uploadSelect
+  })
+
+  if (!upload) {
+    throw new AppError(404, 'Upload not found')
+  }
+
+  await ensureCanAccessUploadRecord(context, upload)
+
+  if (upload.status !== 'UPLOADED') {
+    throw new AppError(400, 'Preview is only available for uploaded files')
+  }
+
+  if (!isPreviewableImage(upload.mimeType, upload.fileName)) {
+    throw new AppError(400, 'Preview is not available for this file type')
+  }
+
+  const storage = getStorageService()
+  const signed = await storage.createPresignedGetUrl({
+    storageKey: upload.storageKey,
+    expiresInSeconds: storageConfig.downloadExpirySeconds
+  })
+
+  return {
+    previewUrl: signed.downloadUrl,
+    expiresIn: signed.expiresInSeconds,
+    fileName: upload.fileName,
+    mimeType: upload.mimeType
+  }
 }
 
 export async function createUpload(context: RequestContext, input: CreateUploadInput): Promise<UploadDTO> {
@@ -173,21 +189,35 @@ export async function createZipUpload(context: RequestContext, input: CreateZipU
 export async function createPresignedUrl(context: RequestContext, input: PresignedUrlInput) {
   await ensureOrganizationAccess(context, input.organizationId)
 
-  const storageKey = createStorageKey(input)
-  const storageUrl = `${mockStorageBaseUrl(input.storageProvider)}/${storageKey}`
+  if (!input.orderId) {
+    throw new AppError(400, 'orderId is required for presigned uploads')
+  }
+
+  const storage = getStorageService()
+  const storageKey = createUploadStorageKey({
+    organizationId: input.organizationId,
+    orderId: input.orderId,
+    fileName: input.fileName
+  })
+
+  const presigned = await storage.createPresignedPutUrl({
+    storageKey,
+    mimeType: input.mimeType,
+    expiresInSeconds: storageConfig.uploadExpirySeconds
+  })
 
   const upload = await prisma.upload.create({
     data: {
       organizationId: input.organizationId,
       userId: context.userId,
-      orderId: input.orderId ?? null,
+      orderId: input.orderId,
       originalName: input.originalName,
       fileName: input.fileName,
       mimeType: input.mimeType,
       fileSize: input.fileSize,
-      storageProvider: input.storageProvider,
-      storageKey,
-      storageUrl,
+      storageProvider: storage.provider,
+      storageKey: presigned.storageKey,
+      storageUrl: presigned.storageUrl,
       status: 'PENDING'
     },
     select: uploadSelect
@@ -196,16 +226,14 @@ export async function createPresignedUrl(context: RequestContext, input: Presign
   return {
     upload,
     presigned: {
-      provider: input.storageProvider,
-      method: 'PUT',
-      uploadUrl: `${storageUrl}?mockPresigned=true`,
-      storageKey,
-      storageUrl,
-      expiresInSeconds: 900,
-      headers: {
-        'Content-Type': input.mimeType
-      },
-      mode: 'mock'
+      provider: presigned.provider,
+      method: 'PUT' as const,
+      uploadUrl: presigned.uploadUrl,
+      storageKey: presigned.storageKey,
+      storageUrl: presigned.storageUrl,
+      bucket: presigned.bucket,
+      expiresInSeconds: presigned.expiresInSeconds,
+      headers: presigned.headers
     }
   }
 }
@@ -213,12 +241,22 @@ export async function createPresignedUrl(context: RequestContext, input: Presign
 export async function completeUpload(context: RequestContext, input: CompleteUploadInput) {
   const upload = await getUpload(context, input.uploadId)
 
+  if (upload.status === 'UPLOADED') {
+    return upload
+  }
+
+  const storageKey = input.storageKey ?? upload.storageKey
+  const storage = getStorageService()
+  const head = await storage.headObject(storageKey)
+  const verified = head.exists && head.contentLength > 0
+
   return prisma.upload.update({
     where: { id: upload.id },
     data: {
-      status: 'UPLOADED',
-      ...(input.storageKey !== undefined ? { storageKey: input.storageKey } : {}),
-      ...(input.storageUrl !== undefined ? { storageUrl: input.storageUrl } : {})
+      status: verified ? 'UPLOADED' : 'FAILED',
+      storageKey,
+      storageUrl: input.storageUrl ?? upload.storageUrl ?? storage.getObjectUrl(storageKey),
+      ...(verified && head.contentLength > 0 ? { fileSize: head.contentLength } : {})
     },
     select: uploadSelect
   })
@@ -226,6 +264,15 @@ export async function completeUpload(context: RequestContext, input: CompleteUpl
 
 export async function deleteUpload(context: RequestContext, uploadId: string) {
   const upload = await getUpload(context, uploadId)
+
+  if (upload.status === 'UPLOADED' && upload.storageKey) {
+    try {
+      const storage = getStorageService()
+      await storage.deleteObject(upload.storageKey)
+    } catch {
+      // Keep soft-delete even if remote object removal fails.
+    }
+  }
 
   await prisma.upload.update({
     where: { id: upload.id },
@@ -246,6 +293,27 @@ async function buildListWhere(context: RequestContext, query: ListUploadsQuery):
     }
   }
 
+  if (query.orderId && (context.role === 'EDITOR' || context.role === 'QA')) {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: query.orderId,
+        isDeleted: false
+      },
+      select: {
+        assignedEditorId: true,
+        assignedQaId: true
+      }
+    })
+
+    if (context.role === 'EDITOR' && order?.assignedEditorId === context.userId) {
+      return base
+    }
+
+    if (context.role === 'QA' && order?.assignedQaId === context.userId) {
+      return base
+    }
+  }
+
   if (query.organizationId) {
     await ensureOrganizationAccess(context, query.organizationId)
     return {
@@ -261,11 +329,72 @@ async function buildListWhere(context: RequestContext, query: ListUploadsQuery):
   }
 }
 
-async function ensureUploadAccess(context: RequestContext, organizationId: string) {
+async function ensureCanAccessOrderUploads(context: RequestContext, orderId: string) {
   if (isAdmin(context)) {
     return
   }
 
+  const order = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      isDeleted: false
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      assignedEditorId: true,
+      assignedQaId: true
+    }
+  })
+
+  if (!order) {
+    throw new AppError(404, 'Order not found')
+  }
+
+  if (context.role === 'EDITOR' && order.assignedEditorId === context.userId) {
+    return
+  }
+
+  if (context.role === 'QA' && order.assignedQaId === context.userId) {
+    return
+  }
+
+  await ensureOrganizationMembership(context, order.organizationId)
+}
+
+async function ensureCanAccessUploadRecord(
+  context: RequestContext,
+  upload: Pick<UploadDTO, 'organizationId' | 'orderId'>
+) {
+  if (isAdmin(context)) {
+    return
+  }
+
+  if (upload.orderId && (context.role === 'EDITOR' || context.role === 'QA')) {
+    const order = await prisma.order.findFirst({
+      where: {
+        id: upload.orderId,
+        isDeleted: false
+      },
+      select: {
+        assignedEditorId: true,
+        assignedQaId: true
+      }
+    })
+
+    if (context.role === 'EDITOR' && order?.assignedEditorId === context.userId) {
+      return
+    }
+
+    if (context.role === 'QA' && order?.assignedQaId === context.userId) {
+      return
+    }
+  }
+
+  await ensureOrganizationMembership(context, upload.organizationId)
+}
+
+async function ensureOrganizationMembership(context: RequestContext, organizationId: string) {
   const membership = await prisma.membership.findFirst({
     where: {
       organizationId,
@@ -277,6 +406,14 @@ async function ensureUploadAccess(context: RequestContext, organizationId: strin
   if (!membership) {
     throw new AppError(403, 'Forbidden')
   }
+}
+
+async function ensureUploadAccess(context: RequestContext, organizationId: string) {
+  if (isAdmin(context)) {
+    return
+  }
+
+  await ensureOrganizationMembership(context, organizationId)
 }
 
 async function ensureOrganizationAccess(context: RequestContext, organizationId: string) {

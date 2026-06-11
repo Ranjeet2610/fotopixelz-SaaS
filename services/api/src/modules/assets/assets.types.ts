@@ -4,8 +4,10 @@ import type {
   assetIdParamsSchema,
   assetStatusSchema,
   assetVersionParamsSchema,
+  completeDeliverableSchema,
   createAssetSchema,
   createAssetVersionSchema,
+  deliverablePresignedUrlSchema,
   listAssetsQuerySchema,
   storageProviderSchema,
   updateAssetSchema,
@@ -26,3 +28,5 @@ export type CreateAssetVersionInput = z.infer<typeof createAssetVersionSchema>
 export type UpdateAssetVersionInput = z.infer<typeof updateAssetVersionSchema>
 export type AssetIdParams = z.infer<typeof assetIdParamsSchema>
 export type AssetVersionParams = z.infer<typeof assetVersionParamsSchema>
+export type DeliverablePresignedUrlInput = z.infer<typeof deliverablePresignedUrlSchema>
+export type CompleteDeliverableInput = z.infer<typeof completeDeliverableSchema>

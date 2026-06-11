@@ -8,6 +8,7 @@ import {
   createZipUpload,
   deleteUpload,
   getUpload,
+  getUploadPreviewUrl,
   getUploadsStatus,
   listUploads,
   listUploadsByOrder
@@ -137,6 +138,25 @@ export async function listUploadsHandler(req: Request, res: Response) {
   try {
     const uploads = await listUploads(context, parsed.data)
     return res.status(200).json({ success: true, data: uploads })
+  } catch (error) {
+    return sendError(res, error)
+  }
+}
+
+export async function getUploadPreviewUrlHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const params = uploadIdParamsSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({ success: false, errors: params.error.flatten() })
+  }
+
+  try {
+    const preview = await getUploadPreviewUrl(context, params.data.id)
+    return res.status(200).json({ success: true, data: preview })
   } catch (error) {
     return sendError(res, error)
   }

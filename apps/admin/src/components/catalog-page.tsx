@@ -18,6 +18,7 @@ import {
   Modal,
   PageHeader,
   PermissionNotice,
+  SelectField,
   StatusBadge,
   SuccessBanner,
   TextAreaField,
@@ -79,6 +80,7 @@ export function CatalogPage({ kind }: { kind: CatalogKind }) {
               ...(kind === "addons"
                 ? [
                     { key: "price", label: "Price", render: (row: ApiRecord) => numberValue(row.price).toFixed(2) },
+                    { key: "pricingType", label: "Pricing", render: (row: ApiRecord) => textValue(row.pricingType, "FIXED") },
                     { key: "credits", label: "Credits", render: (row: ApiRecord) => String(numberValue(row.credits)) },
                     { key: "status", label: "Status", render: (row: ApiRecord) => <StatusBadge value={row.isActive === false ? "INACTIVE" : "ACTIVE"} /> },
                   ]
@@ -138,6 +140,7 @@ function CatalogModal({
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [pricingType, setPricingType] = useState("FIXED");
   const [credits, setCredits] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const editing = value && value !== "new";
@@ -148,12 +151,14 @@ function CatalogModal({
       setSlug("");
       setDescription("");
       setPrice("");
+      setPricingType("FIXED");
       setCredits("");
     } else if (value) {
       setName(textValue(value.name, ""));
       setSlug(textValue(value.slug, ""));
       setDescription(textValue(value.description, ""));
       setPrice(value.price === undefined ? "" : textValue(value.price, ""));
+      setPricingType(textValue(value.pricingType, "FIXED"));
       setCredits(value.credits === undefined ? "" : textValue(value.credits, ""));
     }
   }, [value]);
@@ -180,6 +185,7 @@ function CatalogModal({
             slug,
             description,
             price: price ? Number(price) : undefined,
+            pricingType,
             credits: credits ? Number(credits) : undefined,
           })
         : compactPayload({ name, slug, description });
@@ -205,8 +211,12 @@ function CatalogModal({
         <TextField label="Slug" value={slug} onChange={(event) => setSlug(event.target.value)} />
         <TextAreaField label="Description" value={description} onChange={setDescription} />
         {kind === "addons" ? (
-          <div className="form-grid two">
+          <div className="form-grid three">
             <TextField label="Price" type="number" min="0" step="0.01" value={price} onChange={(event) => setPrice(event.target.value)} />
+            <SelectField label="Pricing type" value={pricingType} onChange={(event) => setPricingType(event.target.value)}>
+              <option value="FIXED">Fixed amount</option>
+              <option value="PER_IMAGE">Per image</option>
+            </SelectField>
             <TextField label="Credits" type="number" min="0" step="1" value={credits} onChange={(event) => setCredits(event.target.value)} />
           </div>
         ) : null}

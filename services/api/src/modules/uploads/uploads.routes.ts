@@ -8,6 +8,7 @@ import {
   createZipUploadHandler,
   deleteUploadHandler,
   getUploadHandler,
+  getUploadPreviewUrlHandler,
   getUploadsHealth,
   listUploadsByOrderHandler,
   listUploadsHandler
@@ -25,6 +26,7 @@ uploadsRouter.post('/complete', completeUploadHandler)
 uploadsRouter.post('/', createUploadHandler)
 uploadsRouter.get('/', listUploadsHandler)
 uploadsRouter.get('/order/:orderId', listUploadsByOrderHandler)
+uploadsRouter.get('/:id/preview-url', getUploadPreviewUrlHandler)
 uploadsRouter.get('/:id', getUploadHandler)
 uploadsRouter.delete('/:id', deleteUploadHandler)
 

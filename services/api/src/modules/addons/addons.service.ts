@@ -13,6 +13,7 @@ const addonSelect = {
   slug: true,
   description: true,
   price: true,
+  pricingType: true,
   credits: true,
   isActive: true,
   createdAt: true,
@@ -83,6 +84,7 @@ export async function createAddon(input: CreateAddonInput): Promise<AddonDTO> {
         description: input.description ?? null,
         slug,
         price: input.price ?? 0,
+        pricingType: input.pricingType ?? 'FIXED',
         credits: input.credits ?? 0
       },
       select: addonSelect
@@ -122,6 +124,7 @@ export async function updateAddon(id: string, input: UpdateAddonInput): Promise<
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(slug !== undefined ? { slug } : {}),
         ...(input.price !== undefined ? { price: input.price } : {}),
+        ...(input.pricingType !== undefined ? { pricingType: input.pricingType } : {}),
         ...(input.credits !== undefined ? { credits: input.credits } : {})
       },
       select: addonSelect

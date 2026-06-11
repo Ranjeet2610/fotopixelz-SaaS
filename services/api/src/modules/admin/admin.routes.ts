@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { requireAdmin, requireAuth } from '@repo/auth'
 import {
+  createStaffUserHandler,
   deleteUserHandler,
   getAdminHealth,
   getUserByIdHandler,
@@ -19,6 +20,7 @@ adminRouter.get('/health', getAdminHealth)
 adminRouter.use(requireAuth)
 adminRouter.use(requireAdmin)
 
+adminRouter.post('/users', createStaffUserHandler)
 adminRouter.get('/users', listUsersHandler)
 adminRouter.get('/users/editors', listEditorsHandler)
 adminRouter.get('/users/qa', listQaHandler)

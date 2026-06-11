@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiRequest } from "@/lib/api-client";
-import { isManagementRole } from "@/lib/access-control";
-import { compactPayload, dateValue, getId, nestedText, textValue } from "@/lib/format";
+import { isManagementRole, normalizeRole } from "@/lib/access-control";
+import { compactPayload, dateValue, getId, nestedText, numberValue, textValue } from "@/lib/format";
 import type { ApiRecord, OrderStatus } from "@/lib/types";
 import { useAuth } from "./auth-provider";
 import { useApiList } from "./data-hooks";
@@ -41,13 +41,65 @@ const statuses: OrderStatus[] = [
 
 const priorities = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
+type LineItemDraft = {
+  key: string;
+  serviceId: string;
+  quantity: string;
+  unitPrice: string;
+};
+
+function createLineItemDraft(serviceId = ""): LineItemDraft {
+  return {
+    key: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    serviceId,
+    quantity: "1",
+    unitPrice: "",
+  };
+}
+
+function lineItemUnitPrice(item: LineItemDraft, services: ApiRecord[]) {
+  if (item.unitPrice) {
+    return Number(item.unitPrice);
+  }
+  const service = services.find((entry) => getId(entry) === item.serviceId);
+  return numberValue(service?.basePrice);
+}
+
+function lineItemSubtotal(item: LineItemDraft, services: ApiRecord[]) {
+  const quantity = Number(item.quantity) || 0;
+  return quantity * lineItemUnitPrice(item, services);
+}
+
+function addonLineSubtotal(addon: ApiRecord, imageCount: number) {
+  if (textValue(addon.pricingType) === "PER_IMAGE") {
+    return numberValue(addon.price) * imageCount;
+  }
+  return numberValue(addon.price);
+}
+
+function formatOrderNumber(orderId: string) {
+  return orderId.slice(-8).toUpperCase();
+}
+
+function staffLabel(staff: ApiRecord[], staffId: string) {
+  if (!staffId) {
+    return "-";
+  }
+
+  const match = staff.find((entry) => getId(entry) === staffId);
+  return match ? textValue(match.name ?? match.email) : staffId;
+}
+
 export function OrdersPage({ queue = false }: { queue?: boolean }) {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const role = normalizeRole(user?.role);
   const canManage = isManagementRole(user?.role);
-  const initialScope = searchParams.get("scope") ?? (user?.role === "EDITOR" ? "editor" : canManage ? "admin" : undefined);
+  const isEditor = role === "EDITOR";
+  const isQa = role === "QA";
+  const initialScope = searchParams.get("scope") ?? (canManage ? "admin" : undefined);
   const [scope, setScope] = useState(initialScope ?? "");
-  const [status, setStatus] = useState(queue ? "READY_FOR_QA" : "");
+  const [status, setStatus] = useState(queue ? "" : canManage ? "PENDING" : "");
   const [editing, setEditing] = useState<ApiRecord | "new" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -64,13 +116,27 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
   const editors = useApiList<ApiRecord>("/admin/users/editors", { limit: 100 }, canManage);
   const qaUsers = useApiList<ApiRecord>("/admin/users/qa", { limit: 100 }, canManage);
 
-  const title = queue ? "QA Queue" : user?.role === "EDITOR" ? "Assigned Orders" : "Orders";
+  const title = queue ? "QA Queue" : isEditor ? "Assigned Orders" : canManage ? "Order Queue" : "Orders";
   const visibleOrders = useMemo(() => {
     if (!queue) {
       return orders.data.items;
     }
-    return orders.data.items.filter((order) => ["READY_FOR_QA", "REVISION_REQUIRED", "APPROVED"].includes(textValue(order.status)));
-  }, [orders.data.items, queue]);
+    if (isQa && !status) {
+      return orders.data.items;
+    }
+    return orders.data.items.filter((order) =>
+      ["READY_FOR_QA", "REVISION_REQUIRED", "APPROVED"].includes(textValue(order.status)),
+    );
+  }, [isQa, orders.data.items, queue, status]);
+
+  const statusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const order of orders.data.items) {
+      const key = textValue(order.status, "UNKNOWN");
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [orders.data.items]);
 
   async function updateStatus(orderId: string, nextStatus: OrderStatus) {
     await runAction(async () => {
@@ -118,33 +184,95 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
       <PageHeader
         eyebrow="Workflow"
         title={title}
-        description="Manage production orders, status movement, editor assignment, and QA assignment."
-        actions={canManage ? <Button onClick={() => setEditing("new")}>Create order</Button> : null}
+        description="Monitor client orders, assign editors and QA, and move production status through the workflow."
       />
       <ErrorBanner message={orders.error ?? actionError} />
       <SuccessBanner message={message} />
 
+      {queue ? (
+        <Card className="qa-queue-debug">
+          <p className="page-eyebrow">Temporary debug</p>
+          <h2 className="section-title">QA queue diagnostics</h2>
+          <dl className="detail-list qa-queue-debug-list">
+            <div>
+              <dt>Logged-in QA user</dt>
+              <dd>
+                {user?.email ?? "—"} <span className="muted-id">({user?.id ?? "no id"})</span>
+              </dd>
+            </div>
+            <div>
+              <dt>API status filter</dt>
+              <dd>
+                {status || "none (server inbox: READY_FOR_QA, REVISION_REQUIRED, DELIVERED)"}
+              </dd>
+            </div>
+            <div>
+              <dt>Server filter</dt>
+              <dd>assignedQaId must equal logged-in QA user id</dd>
+            </div>
+            <div>
+              <dt>Fetched / visible</dt>
+              <dd>
+                {orders.data.items.length} fetched · {visibleOrders.length} visible in table
+              </dd>
+            </div>
+          </dl>
+          <div className="qa-queue-status-counts">
+            <p className="muted-copy">Order count per status (from API response):</p>
+            {statusCounts.length === 0 ? (
+              <p className="muted-copy">No orders returned.</p>
+            ) : (
+              <ul>
+                {statusCounts.map(([orderStatus, count]) => (
+                  <li key={orderStatus}>
+                    <strong>{orderStatus}</strong>: {count}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+      ) : null}
+
       <Card className="toolbar-card">
         {canManage ? (
           <SelectField label="Scope" value={scope} onChange={(event) => setScope(event.target.value)}>
-            <option value="">All visible</option>
+            <option value="">Production queue</option>
             <option value="admin">Admin</option>
             <option value="client">Client</option>
             <option value="editor">Editor</option>
           </SelectField>
         ) : null}
-        <SelectField label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">All statuses</option>
-          {statuses.map((item) => (
-            <option value={item} key={item}>
-              {item}
-            </option>
-          ))}
-        </SelectField>
+        {!isEditor ? (
+          <SelectField label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">{queue ? "QA inbox (default)" : "All statuses"}</option>
+            {statuses.map((item) => (
+              <option value={item} key={item}>
+                {item}
+              </option>
+            ))}
+          </SelectField>
+        ) : null}
         <Button variant="secondary" onClick={orders.reload}>
           Refresh
         </Button>
       </Card>
+
+      {canManage && !queue ? (
+        <Card className="support-panel">
+          <p className="page-eyebrow">Support</p>
+          <h2 className="section-title">Advanced actions</h2>
+          <p className="muted-copy">
+            Orders are normally created from the client dashboard. Use this only when you need to create an order on
+            behalf of a client.
+          </p>
+          <div className="button-row">
+            <Button variant="secondary" onClick={() => setEditing("new")}>
+              Create Order On Behalf Of Client
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <Card>
         {orders.loading ? (
@@ -154,43 +282,152 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
             rows={visibleOrders}
             rowKey={(row, index) => getId(row) || String(index)}
             empty="No orders found."
-            columns={[
-              {
-                key: "order",
-                label: "Order",
-                render: (row) => (
-                  <div>
-                    <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
-                      {textValue(row.title)}
-                    </Link>
-                    <span className="muted-id">{getId(row)}</span>
-                  </div>
-                ),
-              },
-              { key: "client", label: "Client", render: (row) => nestedText(row, ["createdBy", "email"]) },
-              { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
-              { key: "priority", label: "Priority", render: (row) => <StatusBadge value={textValue(row.priority)} /> },
-              { key: "editor", label: "Editor", render: (row) => textValue(row.assignedEditorId) },
-              { key: "qa", label: "QA", render: (row) => textValue(row.assignedQaId) },
-              { key: "due", label: "Due", render: (row) => dateValue(row.dueDate ?? row.dueAt) },
-              {
-                key: "actions",
-                label: "",
-                render: (row) => (
-                  <OrderRowActions
-                    order={row}
-                    canManage={canManage}
-                    editors={editors.data.items}
-                    qaUsers={qaUsers.data.items}
-                    onStatus={updateStatus}
-                    onAssignEditor={assignEditor}
-                    onAssignQa={assignQa}
-                    onEdit={() => setEditing(row)}
-                    onDelete={deleteOrder}
-                  />
-                ),
-              },
-            ]}
+            columns={
+              queue
+                ? [
+                    {
+                      key: "order",
+                      label: "Order",
+                      render: (row) => (
+                        <div>
+                          <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
+                            {textValue(row.title)}
+                          </Link>
+                          <span className="muted-id">#{formatOrderNumber(getId(row))}</span>
+                        </div>
+                      ),
+                    },
+                    { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
+                    {
+                      key: "assignedQa",
+                      label: "Assigned QA",
+                      render: (row) => {
+                        const assignedQaId = textValue(row.assignedQaId, "");
+                        const matches = assignedQaId && assignedQaId === user?.id;
+                        return (
+                          <div>
+                            <span>{staffLabel(qaUsers.data.items, assignedQaId)}</span>
+                            <span className="muted-id">
+                              {assignedQaId || "not assigned"}
+                              {assignedQaId ? (matches ? " · matches you" : " · different QA") : ""}
+                            </span>
+                          </div>
+                        );
+                      },
+                    },
+                    { key: "client", label: "Client", render: (row) => nestedText(row, ["createdBy", "email"]) },
+                    { key: "due", label: "Due", render: (row) => dateValue(row.dueDate ?? row.dueAt) },
+                    {
+                      key: "actions",
+                      label: "",
+                      render: (row) => (
+                        <OrderRowActions
+                          order={row}
+                          userRole={role}
+                          canManage={false}
+                          editors={editors.data.items}
+                          qaUsers={qaUsers.data.items}
+                          onStatus={updateStatus}
+                          onAssignEditor={assignEditor}
+                          onAssignQa={assignQa}
+                          onEdit={() => setEditing(row)}
+                          onDelete={deleteOrder}
+                        />
+                      ),
+                    },
+                  ]
+                : isEditor
+                ? [
+                    {
+                      key: "order",
+                      label: "Order",
+                      render: (row) => (
+                        <div>
+                          <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
+                            #{formatOrderNumber(getId(row))}
+                          </Link>
+                          <span className="muted-id">{textValue(row.title)}</span>
+                        </div>
+                      ),
+                    },
+                    { key: "client", label: "Client", render: (row) => nestedText(row, ["createdBy", "email"]) },
+                    {
+                      key: "images",
+                      label: "Uploaded images",
+                      render: (row) => String(numberValue(row.totalImages)),
+                    },
+                    { key: "due", label: "Due date", render: (row) => dateValue(row.dueDate ?? row.dueAt) },
+                    { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
+                    {
+                      key: "actions",
+                      label: "",
+                      render: (row) => (
+                        <OrderRowActions
+                          order={row}
+                          userRole={role}
+                          canManage={false}
+                          editors={editors.data.items}
+                          qaUsers={qaUsers.data.items}
+                          onStatus={updateStatus}
+                          onAssignEditor={assignEditor}
+                          onAssignQa={assignQa}
+                          onEdit={() => setEditing(row)}
+                          onDelete={deleteOrder}
+                        />
+                      ),
+                    },
+                  ]
+                : [
+                    {
+                      key: "order",
+                      label: "Order",
+                      render: (row) => (
+                        <div>
+                          <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
+                            {textValue(row.title)}
+                          </Link>
+                          <span className="muted-id">#{formatOrderNumber(getId(row))}</span>
+                        </div>
+                      ),
+                    },
+                    { key: "client", label: "Client", render: (row) => nestedText(row, ["createdBy", "email"]) },
+                    { key: "status", label: "Status", render: (row) => <StatusBadge value={textValue(row.status)} /> },
+                    {
+                      key: "images",
+                      label: "Images",
+                      render: (row) => String(numberValue(row.totalImages)),
+                    },
+                    {
+                      key: "editor",
+                      label: "Editor",
+                      render: (row) => staffLabel(editors.data.items, textValue(row.assignedEditorId)),
+                    },
+                    {
+                      key: "qa",
+                      label: "QA",
+                      render: (row) => staffLabel(qaUsers.data.items, textValue(row.assignedQaId)),
+                    },
+                    { key: "due", label: "Due", render: (row) => dateValue(row.dueDate ?? row.dueAt) },
+                    {
+                      key: "actions",
+                      label: "",
+                      render: (row) => (
+                        <OrderRowActions
+                          order={row}
+                          userRole={role}
+                          canManage={canManage}
+                          editors={editors.data.items}
+                          qaUsers={qaUsers.data.items}
+                          onStatus={updateStatus}
+                          onAssignEditor={assignEditor}
+                          onAssignQa={assignQa}
+                          onEdit={() => setEditing(row)}
+                          onDelete={deleteOrder}
+                        />
+                      ),
+                    },
+                  ]
+            }
           />
         )}
       </Card>
@@ -216,6 +453,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
 
 function OrderRowActions({
   order,
+  userRole,
   canManage,
   editors,
   qaUsers,
@@ -226,6 +464,7 @@ function OrderRowActions({
   onDelete,
 }: {
   order: ApiRecord;
+  userRole: ReturnType<typeof normalizeRole>;
   canManage: boolean;
   editors: ApiRecord[];
   qaUsers: ApiRecord[];
@@ -236,18 +475,52 @@ function OrderRowActions({
   onDelete: (orderId: string) => Promise<void>;
 }) {
   const orderId = getId(order);
+  const currentStatus = textValue(order.status, "DRAFT") as OrderStatus;
+
+  if (userRole === "EDITOR") {
+    return (
+      <div className="row-actions row-actions-wide">
+        <Link className="admin-link-button" href={`/admin/orders/${orderId}`}>
+          Open
+        </Link>
+        {currentStatus === "ASSIGNED" ? (
+          <Button size="sm" onClick={() => void onStatus(orderId, "IN_PROGRESS")}>
+            Start work
+          </Button>
+        ) : null}
+        {currentStatus === "IN_PROGRESS" || currentStatus === "REVISION_REQUIRED" ? (
+          <Button size="sm" onClick={() => void onStatus(orderId, "READY_FOR_QA")}>
+            Mark ready for QA
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (userRole === "QA") {
+    return (
+      <div className="row-actions row-actions-wide">
+        <Link className="admin-link-button" href={`/admin/orders/${orderId}`}>
+          Open
+        </Link>
+        {currentStatus === "READY_FOR_QA" ? (
+          <Link className="admin-link-button" href={`/admin/orders/${orderId}`}>
+            Review in order detail
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="row-actions row-actions-wide">
-      <select className="table-select" value={textValue(order.status, "DRAFT")} onChange={(event) => void onStatus(orderId, event.target.value as OrderStatus)}>
-        {statuses.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
       {canManage ? (
         <>
-          <select className="table-select" value="" onChange={(event) => void onAssignEditor(orderId, event.target.value)}>
+          <select
+            className="table-select"
+            value={textValue(order.assignedEditorId)}
+            onChange={(event) => void onAssignEditor(orderId, event.target.value)}
+          >
             <option value="">Assign editor</option>
             {editors.map((editor) => (
               <option key={getId(editor)} value={getId(editor)}>
@@ -255,11 +528,26 @@ function OrderRowActions({
               </option>
             ))}
           </select>
-          <select className="table-select" value="" onChange={(event) => void onAssignQa(orderId, event.target.value)}>
+          <select
+            className="table-select"
+            value={textValue(order.assignedQaId)}
+            onChange={(event) => void onAssignQa(orderId, event.target.value)}
+          >
             <option value="">Assign QA</option>
             {qaUsers.map((qa) => (
               <option key={getId(qa)} value={getId(qa)}>
                 {textValue(qa.name ?? qa.email)}
+              </option>
+            ))}
+          </select>
+          <select
+            className="table-select"
+            value={currentStatus}
+            onChange={(event) => void onStatus(orderId, event.target.value as OrderStatus)}
+          >
+            {statuses.map((item) => (
+              <option key={item} value={item}>
+                {item}
               </option>
             ))}
           </select>
@@ -309,8 +597,37 @@ function OrderModal({
   });
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([]);
+  const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const editing = value && value !== "new";
+  const canEditItems = !editing || textValue(value?.status) === "DRAFT";
+  const services = useApiList<ApiRecord>(
+    "/services",
+    { organizationId: form.organizationId || undefined, limit: 100 },
+    Boolean(form.organizationId),
+  );
+
+  const totalImageCount = useMemo(
+    () => lineItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
+    [lineItems],
+  );
+
+  const lineItemsTotal = useMemo(
+    () => lineItems.reduce((sum, item) => sum + lineItemSubtotal(item, services.data.items), 0),
+    [lineItems, services.data.items],
+  );
+
+  const addonsSubtotal = useMemo(
+    () =>
+      selectedAddonIds.reduce((sum, addonId) => {
+        const addon = addons.find((entry) => getId(entry) === addonId);
+        return addon ? sum + addonLineSubtotal(addon, totalImageCount) : sum;
+      }, 0),
+    [selectedAddonIds, addons, totalImageCount],
+  );
+
+  const estimatedTotal = lineItemsTotal + addonsSubtotal;
+  const hasCatalogLines = lineItems.some((item) => item.serviceId) || selectedAddonIds.length > 0;
 
   useEffect(() => {
     if (value === "new") {
@@ -327,6 +644,7 @@ function OrderModal({
       });
       setSelectedAddonIds([]);
       setSelectedUploadIds([]);
+      setLineItems([]);
     } else if (value) {
       setForm({
         organizationId: textValue(value.organizationId, ""),
@@ -339,8 +657,20 @@ function OrderModal({
         priority: textValue(value.priority, "NORMAL"),
         dueDate: value.dueDate ? new Date(String(value.dueDate)).toISOString().slice(0, 16) : "",
       });
-      setSelectedAddonIds([]);
+      const existingAddons = Array.isArray(value.addons) ? value.addons : [];
+      setSelectedAddonIds(
+        existingAddons.map((addon) => textValue(addon.addonId, nestedText(addon, ["addon", "id"], ""))),
+      );
       setSelectedUploadIds([]);
+      const existingItems = Array.isArray(value.items) ? value.items : [];
+      setLineItems(
+        existingItems.map((item) => ({
+          key: getId(item) || createLineItemDraft().key,
+          serviceId: textValue(item.serviceId, nestedText(item, ["service", "id"], "")),
+          quantity: textValue(item.quantity, "1"),
+          unitPrice: item.unitPrice === undefined ? "" : textValue(item.unitPrice, ""),
+        })),
+      );
     }
   }, [value, organizations]);
 
@@ -357,16 +687,36 @@ function OrderModal({
     setSubmitting(true);
     onError(null);
 
+    const items = lineItems
+      .filter((item) => item.serviceId)
+      .map((item) =>
+        compactPayload({
+          serviceId: item.serviceId,
+          quantity: Number(item.quantity) || 1,
+          unitPrice: item.unitPrice ? Number(item.unitPrice) : undefined,
+        }),
+      );
+
+    const addonLines = selectedAddonIds.map((addonId) => ({ addonId }));
+
     const body = compactPayload({
       organizationId: form.organizationId,
       categoryId: form.categoryId,
       title: form.title,
       instructions: form.instructions,
-      totalImages: Number(form.totalImages),
-      creditsUsed: Number(form.creditsUsed),
+      totalImages: hasCatalogLines ? undefined : Number(form.totalImages),
+      creditsUsed: hasCatalogLines ? undefined : Number(form.creditsUsed),
       totalAmount: form.totalAmount ? Number(form.totalAmount) : undefined,
       priority: form.priority,
       dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : undefined,
+      items: !editing ? (items.length > 0 ? items : undefined) : canEditItems ? items : undefined,
+      addons: !editing
+        ? addonLines.length > 0
+          ? addonLines
+          : undefined
+        : canEditItems
+          ? addonLines
+          : undefined,
     });
 
     try {
@@ -386,8 +736,17 @@ function OrderModal({
   }
 
   return (
-    <Modal open={Boolean(value)} title={editing ? "Edit order" : "Create order"} onClose={onClose}>
+    <Modal
+      open={Boolean(value)}
+      title={editing ? "Edit order" : "Create Order On Behalf Of Client"}
+      onClose={onClose}
+    >
       <FormShell onSubmit={submit}>
+        {!editing ? (
+          <p className="muted-copy">
+            Support-only flow. Client accounts should create orders from their dashboard under normal operations.
+          </p>
+        ) : null}
         <div className="form-grid two">
           <SelectField label="Organization" value={form.organizationId} onChange={(event) => update("organizationId", event.target.value)} disabled={Boolean(editing)}>
             {organizations.map((organization) => (
@@ -407,6 +766,101 @@ function OrderModal({
         </div>
         <TextField label="Title" value={form.title} onChange={(event) => update("title", event.target.value)} required />
         <TextAreaField label="Instructions" value={form.instructions} onChange={(value) => update("instructions", value)} />
+
+        <div className="stack-lg">
+          <div className="inline-meta">
+            <strong>Services</strong>
+            {canEditItems ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                type="button"
+                onClick={() => setLineItems((current) => [...current, createLineItemDraft()])}
+              >
+                Add service
+              </Button>
+            ) : (
+              <span className="muted-copy">Line items are locked after draft.</span>
+            )}
+          </div>
+          {lineItems.length === 0 ? (
+            <p className="muted-copy">No services added. Legacy orders can still use manual totals below.</p>
+          ) : (
+            <div className="stack-lg">
+              {lineItems.map((item, index) => (
+                <div className="form-grid three" key={item.key}>
+                  <SelectField
+                    label="Service"
+                    value={item.serviceId}
+                    disabled={!canEditItems}
+                    onChange={(event) =>
+                      setLineItems((current) =>
+                        current.map((entry, entryIndex) =>
+                          entryIndex === index ? { ...entry, serviceId: event.target.value, unitPrice: "" } : entry,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">Select service</option>
+                    {services.data.items.map((service) => (
+                      <option value={getId(service)} key={getId(service)}>
+                        {textValue(service.name)} ({numberValue(service.basePrice).toFixed(2)})
+                      </option>
+                    ))}
+                  </SelectField>
+                  <TextField
+                    label="Images"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={item.quantity}
+                    disabled={!canEditItems}
+                    onChange={(event) =>
+                      setLineItems((current) =>
+                        current.map((entry, entryIndex) =>
+                          entryIndex === index ? { ...entry, quantity: event.target.value } : entry,
+                        ),
+                      )
+                    }
+                  />
+                  <TextField
+                    label="Unit price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Service price"
+                    value={item.unitPrice}
+                    disabled={!canEditItems}
+                    onChange={(event) =>
+                      setLineItems((current) =>
+                        current.map((entry, entryIndex) =>
+                          entryIndex === index ? { ...entry, unitPrice: event.target.value } : entry,
+                        ),
+                      )
+                    }
+                  />
+                  <div className="form-actions">
+                    <span>Subtotal: {lineItemSubtotal(item, services.data.items).toFixed(2)}</span>
+                    {canEditItems ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        type="button"
+                        onClick={() => setLineItems((current) => current.filter((_, entryIndex) => entryIndex !== index))}
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              <p className="muted-copy">
+                Services subtotal: {lineItemsTotal.toFixed(2)} ({totalImageCount} image{totalImageCount === 1 ? "" : "s"})
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="form-grid two">
           <SelectField
             label="Addons"
@@ -416,7 +870,7 @@ function OrderModal({
           >
             {addons.map((addon) => (
               <option value={getId(addon)} key={getId(addon)}>
-                {textValue(addon.name)}
+                {textValue(addon.name)} ({textValue(addon.pricingType, "FIXED")} · {numberValue(addon.price).toFixed(2)})
               </option>
             ))}
           </SelectField>
@@ -433,10 +887,38 @@ function OrderModal({
             ))}
           </SelectField>
         </div>
+        {selectedAddonIds.length > 0 ? (
+          <p className="muted-copy">Addons subtotal: {addonsSubtotal.toFixed(2)}</p>
+        ) : null}
+        {hasCatalogLines ? (
+          <p className="muted-copy">Estimated order total: {estimatedTotal.toFixed(2)}</p>
+        ) : null}
         <div className="form-grid three">
-          <TextField label="Total images" type="number" min="0" value={form.totalImages} onChange={(event) => update("totalImages", event.target.value)} />
-          <TextField label="Credits used" type="number" min="0" value={form.creditsUsed} onChange={(event) => update("creditsUsed", event.target.value)} />
-          <TextField label="Total amount" type="number" min="0" step="0.01" value={form.totalAmount} onChange={(event) => update("totalAmount", event.target.value)} />
+          <TextField
+            label="Total images"
+            type="number"
+            min="0"
+            value={hasCatalogLines ? String(totalImageCount) : form.totalImages}
+            onChange={(event) => update("totalImages", event.target.value)}
+            disabled={hasCatalogLines}
+          />
+          <TextField
+            label="Credits used"
+            type="number"
+            min="0"
+            value={form.creditsUsed}
+            onChange={(event) => update("creditsUsed", event.target.value)}
+            disabled={hasCatalogLines}
+          />
+          <TextField
+            label="Total amount (admin override)"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder={hasCatalogLines ? estimatedTotal.toFixed(2) : undefined}
+            value={form.totalAmount}
+            onChange={(event) => update("totalAmount", event.target.value)}
+          />
         </div>
         <div className="form-grid two">
           <SelectField label="Priority" value={form.priority} onChange={(event) => update("priority", event.target.value)}>

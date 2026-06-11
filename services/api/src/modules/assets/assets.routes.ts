@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import { requireAuth } from '@repo/auth'
 import {
+  completeDeliverableUploadHandler,
   createAssetHandler,
   createAssetVersionHandler,
+  createDeliverablePresignedUrlHandler,
   deleteAssetHandler,
   deleteAssetVersionHandler,
   getAssetDownloadUrlHandler,
@@ -19,6 +21,8 @@ const assetsRouter = Router()
 assetsRouter.use(requireAuth)
 
 assetsRouter.get('/health', getAssetsHealth)
+assetsRouter.post('/presigned-url', createDeliverablePresignedUrlHandler)
+assetsRouter.post('/complete', completeDeliverableUploadHandler)
 assetsRouter.post('/', createAssetHandler)
 assetsRouter.get('/', listAssetsHandler)
 assetsRouter.get('/:assetId/download-url', getAssetDownloadUrlHandler)

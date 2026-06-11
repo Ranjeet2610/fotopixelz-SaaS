@@ -3,15 +3,19 @@ import { AppError } from '../../common/errors/app-error'
 import {
   assetIdParamsSchema,
   assetVersionParamsSchema,
+  completeDeliverableSchema,
   createAssetSchema,
   createAssetVersionSchema,
+  deliverablePresignedUrlSchema,
   listAssetsQuerySchema,
   updateAssetSchema,
   updateAssetVersionSchema
 } from './assets.validator'
 import {
+  completeDeliverableUpload,
   createAsset,
   createAssetVersion,
+  createDeliverablePresignedUrl,
   deleteAsset,
   deleteAssetVersion,
   getAsset,
@@ -26,6 +30,44 @@ import type { RequestContext } from './assets.types'
 
 export function getAssetsHealth(_req: Request, res: Response) {
   res.status(200).json(getAssetsStatus())
+}
+
+export async function createDeliverablePresignedUrlHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const parsed = deliverablePresignedUrlSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const result = await createDeliverablePresignedUrl(context, parsed.data)
+    return res.status(201).json({ success: true, data: result })
+  } catch (error) {
+    return sendError(res, error)
+  }
+}
+
+export async function completeDeliverableUploadHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const parsed = completeDeliverableSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const asset = await completeDeliverableUpload(context, parsed.data)
+    return res.status(200).json({ success: true, data: asset })
+  } catch (error) {
+    return sendError(res, error)
+  }
 }
 
 export async function createAssetHandler(req: Request, res: Response) {

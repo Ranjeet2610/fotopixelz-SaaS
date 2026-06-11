@@ -8,6 +8,8 @@ import {
   getOrder,
   getOrdersStatus,
   listOrders,
+  requestOrderRevision,
+  submitOrder,
   updateOrder,
   updateOrderStatus
 } from './orders.service'
@@ -17,6 +19,7 @@ import {
   createOrderSchema,
   listOrdersQuerySchema,
   orderIdParamsSchema,
+  requestOrderRevisionSchema,
   updateOrderSchema,
   updateOrderStatusSchema
 } from './orders.validator'
@@ -126,6 +129,25 @@ export async function deleteOrderHandler(req: Request, res: Response) {
   }
 }
 
+export async function submitOrderHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const params = orderIdParamsSchema.safeParse(req.params)
+  if (!params.success) {
+    return res.status(400).json({ success: false, errors: params.error.flatten() })
+  }
+
+  try {
+    const result = await submitOrder(context, params.data.id)
+    return res.status(200).json({ success: true, data: result })
+  } catch (error) {
+    return sendError(res, error)
+  }
+}
+
 export async function updateOrderStatusHandler(req: Request, res: Response) {
   const context = requestContext(req)
   if (!context) {
@@ -158,6 +180,25 @@ export async function assignEditorHandler(req: Request, res: Response) {
 
   try {
     const order = await assignEditor(context, parsed.data)
+    return res.status(200).json({ success: true, data: order })
+  } catch (error) {
+    return sendError(res, error)
+  }
+}
+
+export async function requestOrderRevisionHandler(req: Request, res: Response) {
+  const context = requestContext(req)
+  if (!context) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  const parsed = requestOrderRevisionSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const order = await requestOrderRevision(context, parsed.data)
     return res.status(200).json({ success: true, data: order })
   } catch (error) {
     return sendError(res, error)

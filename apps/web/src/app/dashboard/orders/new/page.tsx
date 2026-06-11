@@ -1,8 +1,5 @@
-export default function Page() {
-  return (
-    <main style={{ padding: 24 }}>
-      <h1>Web dashboard/orders/new</h1>
-      <p>Placeholder page for dashboard/orders/new.</p>
-    </main>
-  )
+import { OrderWizard } from "@/components/order-wizard/order-wizard";
+
+export default function NewOrderPage() {
+  return <OrderWizard />;
 }

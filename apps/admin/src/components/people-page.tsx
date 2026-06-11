@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiRequest } from "@/lib/api-client";
-import { isManagementRole } from "@/lib/access-control";
+import {
+  canManageTargetUser,
+  creatableUserRoles,
+  type CreatableUserRole,
+  editableUserRoles,
+  isManagementRole,
+  visibleUserRoles,
+} from "@/lib/access-control";
 import { dateValue, getId, textValue } from "@/lib/format";
 import type { ApiRecord, Role } from "@/lib/types";
 import { useAuth } from "./auth-provider";
@@ -50,22 +57,27 @@ const pageConfig: Record<PeopleMode, { title: string; endpoint: string; descript
   },
 };
 
-const allRoles: Role[] = ["CLIENT", "EDITOR", "QA", "ADMIN", "SUPER_ADMIN"];
-
 export function PeoplePage({ mode }: { mode: PeopleMode }) {
   const { user } = useAuth();
   const config = pageConfig[mode];
   const canManage = isManagementRole(user?.role);
+  const roleFilterOptions = visibleUserRoles(user?.role);
+  const canCreateUser = creatableUserRoles(user?.role).length > 0 && mode === "all";
   const { data, loading, error, reload } = useApiList<ApiRecord>(config.endpoint, { limit: 100 }, canManage);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selected, setSelected] = useState<ApiRecord | null>(null);
+  const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return data.items.filter((item) => {
+      if (user?.id && getId(item) === user.id) {
+        return false;
+      }
+
       const haystack = `${textValue(item.name, "")} ${textValue(item.email, "")}`.toLowerCase();
       const matchesSearch = haystack.includes(search.toLowerCase());
       const matchesRole = roleFilter === "ALL" || textValue(item.role) === roleFilter;
@@ -74,7 +86,7 @@ export function PeoplePage({ mode }: { mode: PeopleMode }) {
         statusFilter === "ALL" || (statusFilter === "ACTIVE" ? active : !active);
       return matchesSearch && matchesRole && matchesStatus;
     });
-  }, [data.items, search, roleFilter, statusFilter]);
+  }, [data.items, search, roleFilter, statusFilter, user?.id]);
 
   async function deactivate(id: string) {
     setActionError(null);
@@ -94,7 +106,14 @@ export function PeoplePage({ mode }: { mode: PeopleMode }) {
 
   return (
     <div className="stack-xl">
-      <PageHeader eyebrow="People" title={config.title} description={config.description} />
+      <PageHeader
+        eyebrow="People"
+        title={config.title}
+        description={config.description}
+        actions={
+          canCreateUser ? <Button onClick={() => setCreating(true)}>Create user</Button> : null
+        }
+      />
       <ErrorBanner message={error ?? actionError} />
       <SuccessBanner message={message} />
 
@@ -102,7 +121,7 @@ export function PeoplePage({ mode }: { mode: PeopleMode }) {
         <TextField label="Search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or email" />
         <SelectField label="Role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="ALL">All roles</option>
-          {allRoles.map((role) => (
+          {roleFilterOptions.map((role) => (
             <option key={role} value={role}>
               {role}
             </option>
@@ -135,24 +154,40 @@ export function PeoplePage({ mode }: { mode: PeopleMode }) {
               {
                 key: "actions",
                 label: "",
-                render: (row) => (
-                  <div className="row-actions">
-                    <Button size="sm" variant="secondary" onClick={() => setSelected(row)}>
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => void deactivate(getId(row))}>
-                      Disable
-                    </Button>
-                  </div>
-                ),
+                render: (row) =>
+                  canManageTargetUser(user?.role, textValue(row.role), user?.id, getId(row)) ? (
+                    <div className="row-actions">
+                      <Button size="sm" variant="secondary" onClick={() => setSelected(row)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={() => void deactivate(getId(row))}>
+                        Disable
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="muted-copy">View only</span>
+                  ),
               },
             ]}
           />
         )}
       </Card>
 
+      <UserCreateModal
+        open={creating}
+        actorRole={user?.role}
+        onClose={() => setCreating(false)}
+        onCreated={() => {
+          setCreating(false);
+          setMessage("User created.");
+          reload();
+        }}
+        onError={setActionError}
+      />
+
       <UserEditModal
         currentRole={user?.role}
+        currentUserId={user?.id}
         user={selected}
         onClose={() => setSelected(null)}
         onSaved={() => {
@@ -166,15 +201,117 @@ export function PeoplePage({ mode }: { mode: PeopleMode }) {
   );
 }
 
+function UserCreateModal({
+  open,
+  actorRole,
+  onClose,
+  onCreated,
+  onError,
+}: {
+  open: boolean;
+  actorRole?: Role;
+  onClose: () => void;
+  onCreated: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const createRoles = creatableUserRoles(actorRole);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<CreatableUserRole>("EDITOR");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const allowedRoles = creatableUserRoles(actorRole);
+    setName("");
+    setEmail("");
+    setPassword("");
+    setRole(allowedRoles[0] ?? "EDITOR");
+  }, [open, actorRole]);
+
+  if (!open) {
+    return null;
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    onError(null);
+
+    try {
+      await apiRequest("/admin/users", {
+        method: "POST",
+        body: {
+          name: name.trim() || undefined,
+          email,
+          password,
+          role,
+        },
+      });
+      onCreated();
+    } catch (caught) {
+      onError(caught instanceof Error ? caught.message : "User creation failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal open={open} title="Create user" onClose={onClose}>
+      <FormShell onSubmit={submit}>
+        <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" />
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          required
+        />
+        <TextField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="new-password"
+          required
+        />
+        <p className="muted-copy">Password must be at least 8 characters.</p>
+        <SelectField label="Role" value={role} onChange={(event) => setRole(event.target.value as CreatableUserRole)}>
+          {createRoles.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </SelectField>
+        <FormActions>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Creating" : "Create user"}
+          </Button>
+        </FormActions>
+      </FormShell>
+    </Modal>
+  );
+}
+
 function UserEditModal({
   user,
   currentRole,
+  currentUserId,
   onClose,
   onSaved,
   onError,
 }: {
   user: ApiRecord | null;
   currentRole?: Role;
+  currentUserId?: string;
   onClose: () => void;
   onSaved: () => void;
   onError: (message: string | null) => void;
@@ -197,8 +334,7 @@ function UserEditModal({
   }
 
   const activeUser = user;
-  const canSetSuperAdmin = currentRole === "SUPER_ADMIN";
-  const options = canSetSuperAdmin ? allRoles : allRoles.filter((item) => item !== "SUPER_ADMIN");
+  const options = editableUserRoles(currentRole);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -207,14 +343,15 @@ function UserEditModal({
 
     try {
       const id = getId(activeUser);
+      if (!canManageTargetUser(currentRole, textValue(activeUser.role), currentUserId, id)) {
+        throw new Error("You do not have permission to modify this user.");
+      }
+
       if (name && name !== textValue(activeUser.name, "")) {
         await apiRequest(`/admin/users/${id}`, { method: "PATCH", body: { name } });
       }
 
       if (role !== activeUser.role) {
-        if (role === "SUPER_ADMIN" && !canSetSuperAdmin) {
-          throw new Error("Only SUPER_ADMIN can promote another SUPER_ADMIN.");
-        }
         await apiRequest(`/admin/users/${id}/role`, { method: "PATCH", body: { role } });
       }
 

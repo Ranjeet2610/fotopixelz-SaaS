@@ -18,7 +18,7 @@ const dashboard: NavItem = { label: "Dashboard", href: "/admin", icon: "D" };
 const orders: NavItem = { label: "Orders", href: "/admin/orders", icon: "O" };
 const assignedOrders: NavItem = {
   label: "Assigned Orders",
-  href: "/admin/orders?scope=editor",
+  href: "/admin/orders",
   icon: "AO",
 };
 const qaQueue: NavItem = { label: "QA Queue", href: "/admin/qa", icon: "Q" };
@@ -43,6 +43,80 @@ export function isManagementRole(role?: string | null) {
   return normalized ? managementRoles.includes(normalized) : false;
 }
 
+export function isSuperAdminRole(role?: string | null) {
+  return normalizeRole(role) === "SUPER_ADMIN";
+}
+
+export function isAdminRole(role?: string | null) {
+  return normalizeRole(role) === "ADMIN";
+}
+
+export function canManageTargetUser(
+  actorRole?: string | null,
+  targetRole?: string | null,
+  actorId?: string | null,
+  targetId?: string | null
+) {
+  const actor = normalizeRole(actorRole);
+  const target = normalizeRole(targetRole);
+
+  if (!actor || !target) {
+    return false;
+  }
+
+  if (actorId && targetId && actorId === targetId) {
+    return false;
+  }
+
+  if (actor === "SUPER_ADMIN") {
+    return true;
+  }
+
+  if (actor === "ADMIN") {
+    return target !== "SUPER_ADMIN";
+  }
+
+  return false;
+}
+
+export type CreatableUserRole = "SUPER_ADMIN" | "ADMIN" | "EDITOR" | "QA" | "CLIENT";
+
+export function creatableUserRoles(actorRole?: string | null): CreatableUserRole[] {
+  if (isSuperAdminRole(actorRole)) {
+    return ["SUPER_ADMIN", "ADMIN", "EDITOR", "QA"];
+  }
+
+  if (isAdminRole(actorRole)) {
+    return ["EDITOR", "QA", "CLIENT"];
+  }
+
+  return [];
+}
+
+export function visibleUserRoles(actorRole?: string | null): Role[] {
+  if (isSuperAdminRole(actorRole)) {
+    return ["CLIENT", "EDITOR", "QA", "ADMIN", "SUPER_ADMIN"];
+  }
+
+  if (isAdminRole(actorRole)) {
+    return ["CLIENT", "EDITOR", "QA", "ADMIN"];
+  }
+
+  return [];
+}
+
+export function editableUserRoles(actorRole?: string | null): Role[] {
+  if (isSuperAdminRole(actorRole)) {
+    return ["CLIENT", "EDITOR", "QA", "ADMIN", "SUPER_ADMIN"];
+  }
+
+  if (isAdminRole(actorRole)) {
+    return ["ADMIN", "CLIENT", "EDITOR", "QA"];
+  }
+
+  return [];
+}
+
 export function getAdminNavGroups(role?: string | null): NavGroup[] {
   const normalized = normalizeRole(role);
 
@@ -59,11 +133,17 @@ export function getAdminNavGroups(role?: string | null): NavGroup[] {
         ],
       },
       {
+        label: "Catalog",
+        items: [
+          { label: "Categories", href: "/admin/categories", icon: "CA" },
+          { label: "Addons", href: "/admin/addons", icon: "AD" },
+          { label: "Services", href: "/admin/services", icon: "SV" },
+        ],
+      },
+      {
         label: "Configuration",
         items: [
           { label: "Organizations", href: "/admin/organizations", icon: "OR" },
-          { label: "Categories", href: "/admin/categories", icon: "CA" },
-          { label: "Addons", href: "/admin/addons", icon: "AD" },
           { label: "Settings", href: "/admin/settings", icon: "SE" },
         ],
       },
@@ -116,6 +196,7 @@ export function canAccessAdminPath(role: string | null | undefined, pathname: st
       "/admin/organizations",
       "/admin/categories",
       "/admin/addons",
+      "/admin/services",
       "/admin/settings",
       "/admin/profile",
     ]);

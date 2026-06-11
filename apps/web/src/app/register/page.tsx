@@ -1,8 +1,11 @@
+import { Suspense } from "react";
+import { RegisterPage } from "@/components/auth-pages";
+import { LoadingBlock } from "@/components/loading-block";
+
 export default function Page() {
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Web register</h1>
-      <p>Placeholder page for register.</p>
-    </main>
-  )
+    <Suspense fallback={<LoadingBlock label="Loading registration..." />}>
+      <RegisterPage />
+    </Suspense>
+  );
 }

@@ -48,34 +48,30 @@ export function getOrganizationsStatus() {
 }
 
 export async function listOrganizations(context: RequestContext, query: ListOrganizationsQuery) {
-  return prisma.organization.findMany({
-    where: {
-      ...(query.includeInactive ? {} : { isActive: true }),
-      memberships: {
-        some: { userId: context.userId }
+  const activeFilter = query.includeInactive ? {} : { isActive: true }
+  const where = isAdmin(context.role)
+    ? activeFilter
+    : {
+        ...activeFilter,
+        memberships: {
+          some: { userId: context.userId }
+        }
       }
-    },
+
+  return prisma.organization.findMany({
+    where,
     include: organizationInclude,
     orderBy: { createdAt: 'desc' }
   })
 }
 
 export async function getOrganization(context: RequestContext, organizationId: string) {
-  const organization = await prisma.organization.findFirst({
-    where: {
-      id: organizationId,
-      memberships: {
-        some: { userId: context.userId }
-      }
-    },
+  await ensureOrganizationViewAccess(context, organizationId)
+
+  return prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId },
     include: organizationInclude
   })
-
-  if (!organization) {
-    throw new AppError(404, 'Organization not found')
-  }
-
-  return organization
 }
 
 export async function createOrganization(context: RequestContext, input: CreateOrganizationInput) {
@@ -112,7 +108,7 @@ export async function updateOrganization(
   organizationId: string,
   input: UpdateOrganizationInput
 ) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
 
   try {
     return await prisma.organization.update({
@@ -130,7 +126,7 @@ export async function updateOrganization(
 }
 
 export async function deleteOrganization(context: RequestContext, organizationId: string) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
 
   return prisma.organization.update({
     where: { id: organizationId },
@@ -140,7 +136,7 @@ export async function deleteOrganization(context: RequestContext, organizationId
 }
 
 export async function listMemberships(context: RequestContext, organizationId: string) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
 
   return prisma.membership.findMany({
     where: { organizationId },
@@ -172,7 +168,7 @@ export async function createMembership(
   organizationId: string,
   input: CreateMembershipInput
 ) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
   await ensureUserExists(input.userId)
 
   try {
@@ -209,7 +205,7 @@ export async function updateMembership(
   membershipId: string,
   input: UpdateMembershipInput
 ) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
   await ensureMembershipExists(organizationId, membershipId)
 
   return prisma.membership.update({
@@ -234,7 +230,7 @@ export async function deleteMembership(
   organizationId: string,
   membershipId: string
 ) {
-  await ensureOrganizationAdminAccess(context, organizationId)
+  await ensureOrganizationManageAccess(context, organizationId)
   await ensureMembershipExists(organizationId, membershipId)
 
   await prisma.membership.delete({
@@ -275,7 +271,33 @@ async function ensureMembershipExists(organizationId: string, membershipId: stri
   }
 }
 
-async function ensureOrganizationAdminAccess(context: RequestContext, organizationId: string) {
+async function ensureOrganizationViewAccess(context: RequestContext, organizationId: string) {
+  await ensureOrganizationExists(organizationId)
+
+  if (isAdmin(context.role)) {
+    return
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      organizationId,
+      userId: context.userId
+    },
+    select: { id: true }
+  })
+
+  if (!membership) {
+    throw new AppError(404, 'Organization not found')
+  }
+}
+
+async function ensureOrganizationManageAccess(context: RequestContext, organizationId: string) {
+  await ensureOrganizationExists(organizationId)
+
+  if (isAdmin(context.role)) {
+    return
+  }
+
   const membership = await prisma.membership.findFirst({
     where: {
       organizationId,
@@ -290,7 +312,7 @@ async function ensureOrganizationAdminAccess(context: RequestContext, organizati
     throw new AppError(404, 'Organization not found')
   }
 
-  if (!(membership.role === 'ADMIN' || membership.role === 'SUPER_ADMIN' || isAdmin(context.role))) {
+  if (!(membership.role === 'OWNER' || membership.role === 'ADMIN' || membership.role === 'SUPER_ADMIN')) {
     throw new AppError(403, 'Forbidden')
   }
 }
