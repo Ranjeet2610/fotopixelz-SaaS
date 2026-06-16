@@ -1,21 +1,196 @@
-version: "3.9"
+name: fotopixelz
+
+networks:
+  fotopixelz:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pnpm_store:
+  root_node_modules:
+  apps_web_node_modules:
+  apps_admin_node_modules:
+  apps_workers_node_modules:
+  services_api_node_modules:
+  packages_auth_node_modules:
+  packages_database_node_modules:
+  packages_upload_gallery_node_modules:
+  packages_validators_node_modules:
+
+x-app-volumes: &app-volumes
+  - ..:/app
+  - root_node_modules:/app/node_modules
+  - pnpm_store:/pnpm/store
+  - apps_web_node_modules:/app/apps/web/node_modules
+  - apps_admin_node_modules:/app/apps/admin/node_modules
+  - apps_workers_node_modules:/app/apps/workers/node_modules
+  - services_api_node_modules:/app/services/api/node_modules
+  - packages_auth_node_modules:/app/packages/auth/node_modules
+  - packages_database_node_modules:/app/packages/database/node_modules
+  - packages_upload_gallery_node_modules:/app/packages/upload-gallery/node_modules
+  - packages_validators_node_modules:/app/packages/validators/node_modules
+
+x-app-env: &app-env
+  NODE_ENV: development
+  TURBO_TELEMETRY_DISABLED: "1"
+  CI: "true"
+  PNPM_STORE_DIR: /pnpm/store
 
 services:
   postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: fotopixelz
+    image: postgres:16-alpine
+    container_name: fotopixelz-postgres
+    restart: unless-stopped
+    networks:
+      - fotopixelz
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-fotopixelz}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fotopixelz}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
+    container_name: fotopixelz-redis
+    restart: unless-stopped
+    networks:
+      - fotopixelz
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
-volumes:
-  pgdata:
+  api:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/api.Dockerfile
+    container_name: fotopixelz-api
+    restart: unless-stopped
+    networks:
+      - fotopixelz
+    ports:
+      - "${API_PORT:-5000}:5000"
+    env_file:
+      - ../.env
+    environment:
+      <<: *app-env
+      PORT: ${PORT:-5000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-fotopixelz}
+      REDIS_URL: redis://redis:6379
+      WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3000}
+      ADMIN_APP_URL: ${ADMIN_APP_URL:-http://localhost:3001}
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:5000}
+    volumes: *app-volumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'api...' --filter 'fotopixelz' &&
+             pnpm exec prisma migrate deploy &&
+             pnpm exec prisma generate &&
+             pnpm --filter api dev"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:5000/health',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  web:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/web.Dockerfile
+    container_name: fotopixelz-web
+    restart: unless-stopped
+    networks:
+      - fotopixelz
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    env_file:
+      - ../.env
+    environment:
+      <<: *app-env
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:5000/api/v1}
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes: *app-volumes
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'web...' --filter 'fotopixelz' &&
+             pnpm --filter web exec next dev -H 0.0.0.0 -p 3000"
+
+  admin:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/admin.Dockerfile
+    container_name: fotopixelz-admin
+    restart: unless-stopped
+    networks:
+      - fotopixelz
+    ports:
+      - "${ADMIN_PORT:-3001}:3001"
+    env_file:
+      - ../.env
+    environment:
+      <<: *app-env
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:5000/api/v1}
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes: *app-volumes
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'admin...' --filter 'fotopixelz' &&
+             pnpm --filter admin exec next dev -H 0.0.0.0 -p 3001"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/worker.Dockerfile
+    container_name: fotopixelz-worker
+    restart: unless-stopped
+    networks:
+      - fotopixelz
+    env_file:
+      - ../.env
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-fotopixelz}
+      REDIS_URL: redis://redis:6379
+    volumes: *app-volumes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: >
+      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'workers...' --filter 'fotopixelz' &&
+             pnpm --filter workers dev"

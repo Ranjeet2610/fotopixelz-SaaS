@@ -3,12 +3,19 @@ packages:
   - "packages/*"
   - "services/*"
   - "infrastructure/*"
+
+confirmModulesPurge: false
+
 allowBuilds:
-  '@clerk/shared': false
-  '@prisma/engines': false
+  "@clerk/shared": false
+  "@prisma/engines": false
   esbuild: false
   msgpackr-extract: false
   msw: false
   prisma: false
   sharp: true
   unrs-resolver: true
+
+fetchTimeout: 600000
+fetchRetries: 5
+networkConcurrency: 8
