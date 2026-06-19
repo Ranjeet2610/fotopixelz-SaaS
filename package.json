@@ -18,7 +18,9 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:cleanup-empty-orgs": "tsx prisma/scripts/cleanup-empty-organizations.ts",
-    "db:cleanup-empty-orgs:execute": "tsx prisma/scripts/cleanup-empty-organizations.ts --execute"
+    "db:cleanup-empty-orgs:execute": "tsx prisma/scripts/cleanup-empty-organizations.ts --execute",
+    "db:repair-deliverables": "tsx prisma/scripts/repair-deliverable-is-current.ts",
+    "db:repair-deliverables:execute": "tsx prisma/scripts/repair-deliverable-is-current.ts --execute"
   },
   "keywords": [],
   "author": "",

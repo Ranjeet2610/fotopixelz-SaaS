@@ -20,6 +20,8 @@ export const WORKFLOW_EVENT_LABELS: Record<string, string> = {
   PAYMENT_CONFIRMED: "Order submitted",
   AI_JOB_STARTED: "AI job started",
   AI_JOB_COMPLETED: "AI job completed",
+  COMMENT_CREATED: "Comment posted",
+  COMMENT_RESOLVED: "Issue resolved",
 };
 
 function payloadText(payload: Record<string, unknown> | undefined, key: string) {
@@ -44,7 +46,9 @@ function resolveLegacyLabel(eventType: string, payload?: Record<string, unknown>
 }
 
 export function describeWorkflowEvent(eventType: string, payload?: Record<string, unknown> | null) {
+  const orderNumber = payloadText(payload ?? undefined, "orderNumber");
   const label = resolveLegacyLabel(eventType, payload ?? undefined) ?? eventType.replaceAll("_", " ");
+  const baseLabel = orderNumber ? `${orderNumber}: ${label}` : label;
   const fromStatus = payloadText(payload ?? undefined, "fromStatus");
   const toStatus = payloadText(payload ?? undefined, "toStatus");
   const note = payloadText(payload ?? undefined, "note");
@@ -52,42 +56,42 @@ export function describeWorkflowEvent(eventType: string, payload?: Record<string
   const assetName = payloadText(payload ?? undefined, "assetName");
 
   if (eventType === "ORDER_STATUS_CHANGED" && fromStatus && toStatus) {
-    return `${label}: ${fromStatus} → ${toStatus}`;
+    return `${baseLabel}: ${fromStatus} → ${toStatus}`;
   }
 
   if (fromStatus && toStatus && fromStatus !== toStatus && eventType !== "REVISION_REQUESTED") {
-    return `${label} (${fromStatus} → ${toStatus})`;
+    return `${baseLabel} (${fromStatus} → ${toStatus})`;
   }
 
   if (note) {
-    return `${label} — ${note}`;
+    return `${baseLabel} — ${note}`;
   }
 
   if (fileName) {
-    return `${label}: ${fileName}`;
+    return `${baseLabel}: ${fileName}`;
   }
 
   if (assetName) {
-    return `${label}: ${assetName}`;
+    return `${baseLabel}: ${assetName}`;
   }
 
   const version = payload?.version;
   const reviewRound = payload?.reviewRound;
   if (typeof version === "number") {
-    return `${label} (v${version}${typeof reviewRound === "number" ? `, round ${reviewRound}` : ""})`;
+    return `${baseLabel} (v${version}${typeof reviewRound === "number" ? `, round ${reviewRound}` : ""})`;
   }
 
   const title = payloadText(payload ?? undefined, "title");
   const comment = payloadText(payload ?? undefined, "comment");
   if (title && comment) {
-    return `${label}: ${title} — ${comment}`;
+    return `${baseLabel}: ${title} — ${comment}`;
   }
 
   if (title) {
-    return `${label}: ${title}`;
+    return `${baseLabel}: ${title}`;
   }
 
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return baseLabel.charAt(0).toUpperCase() + baseLabel.slice(1);
 }
 
 export function workflowEventDescription(event: ApiRecord) {

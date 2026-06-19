@@ -326,7 +326,7 @@ export function OrderWizard() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New order</h1>
         <p className="text-sm text-muted-foreground">
-          Build a draft order for {organization.name}. Upload source files in a later step.
+          Build an order for {organization.name}. Upload source files in a later step.
         </p>
       </div>
 
@@ -475,7 +475,7 @@ export function OrderWizard() {
           <div>
             <h2 className="text-lg font-medium">Quote review</h2>
             <p className="text-sm text-muted-foreground">
-              Review pricing before creating your draft order.
+              Review pricing before placing your order.
             </p>
           </div>
           {loadingQuote ? (
@@ -553,16 +553,16 @@ export function OrderWizard() {
       {step === 5 ? (
         <section className="space-y-4">
           <div>
-            <h2 className="text-lg font-medium">Create draft order</h2>
+            <h2 className="text-lg font-medium">Place order</h2>
             <p className="text-sm text-muted-foreground">
-              Name your order and save it as a draft. You can upload files next.
+              Name your order and place it. You can upload files next.
             </p>
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>Order details</CardTitle>
-              <CardDescription>Required before saving the draft.</CardDescription>
+              <CardDescription>Required before placing your order.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -636,7 +636,7 @@ export function OrderWizard() {
             </Button>
           ) : (
             <Button type="button" onClick={() => void createDraftOrder()} disabled={submitting}>
-              {submitting ? "Creating draft..." : "Create draft order"}
+              {submitting ? "Placing order…" : "Place Order"}
             </Button>
           )}
         </div>

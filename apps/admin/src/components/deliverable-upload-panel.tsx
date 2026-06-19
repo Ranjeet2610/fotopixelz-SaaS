@@ -104,9 +104,11 @@ export function DeliverableUploadPanel({
       }));
 
       setItems((current) => [...current, ...nextItems]);
-      nextItems.forEach((item) => {
-        void runUpload(item.localId, item.file);
-      });
+      void (async () => {
+        for (const item of nextItems) {
+          await runUpload(item.localId, item.file);
+        }
+      })();
     },
     [runUpload],
   );

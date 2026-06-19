@@ -6,22 +6,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { OrderFlowProgress } from "@/components/order-upload/order-flow-progress";
 import { OrderUploadPanel } from "@/components/order-upload/order-upload-panel";
 import { OrderDeliverables } from "@/components/order-deliverables";
+import { ClientOrderComments } from "@/components/client-order-comments";
 import { OrderStatusTimeline } from "@/components/order-status-timeline";
 import { Button } from "@/components/ui/button";
 import { LoadingBlock } from "@/components/loading-block";
 import { ApiError, apiRequest } from "@/lib/api-client";
 import type { CreatedOrder } from "@/lib/catalog-types";
-import { getClientOrderStatusLabel } from "@/lib/order-status";
+import { formatOrderNumber, getClientOrderStatusLabel, isPreUploadOrderStatus } from "@/lib/order-status";
 
 function flowStep(status: string): 1 | 2 | 3 {
-  if (status === "DRAFT") {
+  if (isPreUploadOrderStatus(status)) {
     return 2;
   }
   return 3;
 }
 
 function isFlowCompleted(status: string) {
-  return status === "PENDING" || (status !== "DRAFT" && status !== "UPLOADED");
+  return status === "PENDING" || (!isPreUploadOrderStatus(status) && status !== "UPLOADED");
 }
 
 export default function OrderDetailPage() {
@@ -83,7 +84,7 @@ export default function OrderDetailPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm text-muted-foreground">Order</p>
+          <p className="text-sm text-muted-foreground">{formatOrderNumber(order)}</p>
           <h1 className="text-2xl font-semibold tracking-tight">{order.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{stepLabel}</p>
         </div>
@@ -97,6 +98,10 @@ export default function OrderDetailPage() {
       <OrderStatusTimeline status={order.status} />
 
       <OrderUploadPanel order={order} onOrderUpdated={setOrder} />
+
+      {order.status !== "DRAFT" && order.status !== "SUBMITTED" && order.status !== "UPLOADED" ? (
+        <ClientOrderComments orderId={order.id} readOnly={order.status === "DELIVERED"} />
+      ) : null}
 
       {order.status === "DELIVERED" ? (
         <OrderDeliverables orderId={order.id} orderUpdatedAt={order.updatedAt} />

@@ -36,6 +36,7 @@ enum SubscriptionStatus {
 
 enum OrderStatus {
   DRAFT
+  SUBMITTED
   UPLOADED
   PENDING
   ASSIGNED
@@ -142,6 +143,23 @@ enum WorkflowEventType {
   PAYMENT_CONFIRMED
   DELIVERY_SENT
   ORDER_STATUS_CHANGED
+  COMMENT_CREATED
+  COMMENT_RESOLVED
+}
+
+enum CommentType {
+  GENERAL
+  REVISION
+  CLIENT_FEEDBACK
+  QA_NOTE
+  INTERNAL_NOTE
+  SYSTEM
+}
+
+enum CommentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
 }
 
 model User {
@@ -164,6 +182,8 @@ model User {
   notifications  Notification[]
   auditLogs      AuditLog[]
   workflowEvents WorkflowEvent[] @relation("WorkflowEventActor")
+  orderComments  OrderComment[]  @relation("OrderCommentAuthor")
+  resolvedComments OrderComment[] @relation("OrderCommentResolver")
 
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -279,6 +299,7 @@ model Service {
 
 model Order {
   id             String          @id @default(cuid())
+  orderNumber    String          @unique
   organizationId String
   createdById    String
   categoryId     String?
@@ -286,7 +307,7 @@ model Order {
   assignedQaId   String?
   title          String
   instructions   String?
-  status         OrderStatus     @default(DRAFT)
+  status         OrderStatus     @default(SUBMITTED)
   priority       OrderPriority   @default(NORMAL)
   totalImages    Int             @default(0)
   creditsUsed    Int             @default(0)
@@ -307,11 +328,13 @@ model Order {
   payments       Payment[]
   invoice        Invoice?
   workflowEvents WorkflowEvent[]
+  comments       OrderComment[]
 
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
   @@index([organizationId, status])
+  @@index([orderNumber])
   @@index([createdById])
   @@index([assignedEditorId, status])
   @@index([assignedQaId, status])
@@ -388,6 +411,7 @@ model Asset {
   editingJobs     EditingJob[]
   aiJobs          AiJob[]
   qaReviews       QAReview[]
+  comments        OrderComment[]
 
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -597,4 +621,42 @@ model WorkflowEvent {
   updatedAt      DateTime          @updatedAt
 
   @@index([orderId, eventType])
+  @@index([orderId, createdAt])
+}
+
+model OrderComment {
+  id                   String         @id @default(cuid())
+  orderId              String
+  userId               String
+  assetId              String?
+  parentId             String?
+  commentType          CommentType    @default(GENERAL)
+  status               CommentStatus  @default(OPEN)
+  body                 String
+  attachmentStorageKey String?
+  attachmentFileName   String?
+  attachmentMimeType   String?
+  attachmentUrl        String?
+  resolvedById         String?
+  resolvedAt           DateTime?
+  isDeleted            Boolean        @default(false)
+
+  order                Order          @relation(fields: [orderId], references: [id])
+  user                 User           @relation("OrderCommentAuthor", fields: [userId], references: [id])
+  asset                Asset?         @relation(fields: [assetId], references: [id])
+  resolvedBy           User?          @relation("OrderCommentResolver", fields: [resolvedById], references: [id])
+  parent               OrderComment?  @relation("OrderCommentThread", fields: [parentId], references: [id])
+  replies              OrderComment[] @relation("OrderCommentThread")
+
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([orderId])
+  @@index([assetId])
+  @@index([userId])
+  @@index([commentType])
+  @@index([status])
+  @@index([createdAt])
+  @@index([orderId, createdAt])
+  @@index([orderId, status])
 }

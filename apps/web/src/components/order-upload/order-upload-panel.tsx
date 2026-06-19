@@ -21,7 +21,7 @@ import type { CreatedOrder } from "@/lib/catalog-types";
 import { formatBytes } from "@/lib/format-bytes";
 import { buildSubmittedOrderBilling, calculateOrderBilling } from "@/lib/order-billing";
 import { getCreditsRemaining } from "@/lib/workspace";
-import { formatOrderNumber, getClientOrderStatusLabel } from "@/lib/order-status";
+import { formatOrderNumber, getClientOrderStatusLabel, isPreUploadOrderStatus } from "@/lib/order-status";
 import { SourceUploadGallery } from "@repo/upload-gallery";
 import {
   deleteOrderUpload,
@@ -64,7 +64,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
   const [isDragging, setIsDragging] = useState(false);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
-  const isUploadPhase = order.status === "DRAFT";
+  const isUploadPhase = isPreUploadOrderStatus(order.status);
   const isSubmitPhase = order.status === "UPLOADED";
   const isDeliveredPhase = order.status === "DELIVERED";
   const isSubmittedPhase =
@@ -329,7 +329,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <Metric label="Order number" value={formatOrderNumber(order.id)} />
+            <Metric label="Order number" value={formatOrderNumber(order)} />
             <Metric label="Status" value={getClientOrderStatusLabel(order.status)} />
             <Metric label="Images uploaded" value={String(order.totalImages)} />
             <Metric label="Free credits used" value={String(order.creditsUsed)} />
@@ -437,7 +437,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
           <CardDescription>This order has already been submitted for production.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Metric label="Order number" value={formatOrderNumber(order.id)} />
+          <Metric label="Order number" value={formatOrderNumber(order)} />
           <Metric label="Status" value={getClientOrderStatusLabel(order.status)} />
         </CardContent>
       </Card>
@@ -446,6 +446,21 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
 
   return (
     <div className="space-y-6">
+      {order.status === "SUBMITTED" ? (
+        <Card className="border-emerald-500/30 bg-emerald-500/5">
+          <CardHeader>
+            <CardTitle>Order submitted successfully</CardTitle>
+            <CardDescription>
+              Upload source files to begin production.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <Metric label="Order number" value={formatOrderNumber(order)} />
+            <Metric label="Status" value={getClientOrderStatusLabel(order.status)} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       {uploadedCount > 0 ? (
         <>
           {billing.imagesNotUploaded > 0 ? (

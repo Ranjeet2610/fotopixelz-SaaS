@@ -28,6 +28,7 @@ import {
 
 const statuses: OrderStatus[] = [
   "DRAFT",
+  "SUBMITTED",
   "UPLOADED",
   "PENDING",
   "ASSIGNED",
@@ -38,6 +39,8 @@ const statuses: OrderStatus[] = [
   "DELIVERED",
   "CANCELLED",
 ];
+
+const manualStatuses = statuses.filter((status) => status !== "REVISION_REQUIRED");
 
 const priorities = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
@@ -77,8 +80,12 @@ function addonLineSubtotal(addon: ApiRecord, imageCount: number) {
   return numberValue(addon.price);
 }
 
-function formatOrderNumber(orderId: string) {
-  return orderId.slice(-8).toUpperCase();
+function displayOrderNumber(row: ApiRecord) {
+  const orderNumber = textValue(row.orderNumber);
+  if (orderNumber) {
+    return orderNumber;
+  }
+  return getId(row).slice(-8).toUpperCase();
 }
 
 function staffLabel(staff: ApiRecord[], staffId: string) {
@@ -100,6 +107,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
   const initialScope = searchParams.get("scope") ?? (canManage ? "admin" : undefined);
   const [scope, setScope] = useState(initialScope ?? "");
   const [status, setStatus] = useState(queue ? "" : canManage ? "PENDING" : "");
+  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ApiRecord | "new" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -108,6 +116,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
     limit: 100,
     scope: scope || undefined,
     status: status || undefined,
+    search: search.trim() || undefined,
   });
   const organizations = useApiList<ApiRecord>("/organizations", { includeInactive: false }, canManage);
   const categories = useApiList<ApiRecord>("/categories", { limit: 100 });
@@ -253,6 +262,14 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
             ))}
           </SelectField>
         ) : null}
+        {canManage ? (
+          <TextField
+            label="Search"
+            placeholder="Order number or title"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        ) : null}
         <Button variant="secondary" onClick={orders.reload}>
           Refresh
         </Button>
@@ -293,7 +310,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
                           <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
                             {textValue(row.title)}
                           </Link>
-                          <span className="muted-id">#{formatOrderNumber(getId(row))}</span>
+                          <span className="muted-id">#{displayOrderNumber(row)}</span>
                         </div>
                       ),
                     },
@@ -344,7 +361,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
                       render: (row) => (
                         <div>
                           <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
-                            #{formatOrderNumber(getId(row))}
+                            #{displayOrderNumber(row)}
                           </Link>
                           <span className="muted-id">{textValue(row.title)}</span>
                         </div>
@@ -386,7 +403,7 @@ export function OrdersPage({ queue = false }: { queue?: boolean }) {
                           <Link className="table-link" href={`/admin/orders/${getId(row)}`}>
                             {textValue(row.title)}
                           </Link>
-                          <span className="muted-id">#{formatOrderNumber(getId(row))}</span>
+                          <span className="muted-id">#{displayOrderNumber(row)}</span>
                         </div>
                       ),
                     },
@@ -545,7 +562,12 @@ function OrderRowActions({
             value={currentStatus}
             onChange={(event) => void onStatus(orderId, event.target.value as OrderStatus)}
           >
-            {statuses.map((item) => (
+            {currentStatus === "REVISION_REQUIRED" ? (
+              <option value={currentStatus} disabled>
+                {currentStatus}
+              </option>
+            ) : null}
+            {manualStatuses.map((item) => (
               <option key={item} value={item}>
                 {item}
               </option>
@@ -600,7 +622,8 @@ function OrderModal({
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const editing = value && value !== "new";
-  const canEditItems = !editing || textValue(value?.status) === "DRAFT";
+  const canEditItems =
+    !editing || textValue(value?.status) === "DRAFT" || textValue(value?.status) === "SUBMITTED";
   const services = useApiList<ApiRecord>(
     "/services",
     { organizationId: form.organizationId || undefined, limit: 100 },

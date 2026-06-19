@@ -67,28 +67,38 @@ export function toDeliverableRecords(rows: ApiRecord[]): DeliverableRecord[] {
 
 
 
-export function countReadyDeliverables(rows: ApiRecord[]) {
+export type CurrentDeliverableOptions = {
+  deliverableVersion?: number;
+  reviewRound?: number;
+};
 
-  return countCurrentReadyDeliverables(rows);
-
+export function countReadyDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
+  return countCurrentReadyDeliverables(rows, options);
 }
 
-
-
-export function countCurrentReadyDeliverables(rows: ApiRecord[]) {
-
-  return rows.filter(
-
+export function getCurrentDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
+  const readyRows = rows.filter(
     (row) =>
-
       !row.isDeleted &&
-
-      row.isCurrent === true &&
-
       (stringField(row.status) === "READY" || stringField(row.status) === "DELIVERED"),
+  );
 
-  ).length;
+  const version = Number(options?.deliverableVersion ?? 0);
+  const reviewRound = Number(options?.reviewRound ?? 0);
 
+  if (version > 0) {
+    return readyRows.filter((row) => {
+      const matchesVersion = Number(row.version ?? 0) === version;
+      const matchesRound = reviewRound <= 0 || Number(row.reviewRound ?? 1) === reviewRound;
+      return matchesVersion && matchesRound;
+    });
+  }
+
+  return readyRows.filter((row) => row.isCurrent === true);
+}
+
+export function countCurrentReadyDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
+  return getCurrentDeliverables(rows, options).length;
 }
 
 
@@ -192,23 +202,3 @@ export function groupDeliverablesByVersion(rows: ApiRecord[]): DeliverableVersio
     .sort((left, right) => right.version - left.version);
 
 }
-
-
-
-export function getCurrentDeliverables(rows: ApiRecord[]) {
-
-  return rows.filter(
-
-    (row) =>
-
-      !row.isDeleted &&
-
-      row.isCurrent === true &&
-
-      (stringField(row.status) === "READY" || stringField(row.status) === "DELIVERED"),
-
-  );
-
-}
-
-

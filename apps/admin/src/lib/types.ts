@@ -25,6 +25,7 @@ export type ApiEnvelope<T> = {
 
 export type OrderStatus =
   | "DRAFT"
+  | "SUBMITTED"
   | "UPLOADED"
   | "PENDING"
   | "ASSIGNED"

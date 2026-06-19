@@ -99,7 +99,7 @@ export default function Page() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Create a draft order with the guided wizard, then upload source files.
+              Place an order with the guided wizard, then upload source files.
             </p>
             <Button asChild size="sm">
               <Link href="/dashboard/orders/new">Start new order</Link>

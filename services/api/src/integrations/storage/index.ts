@@ -43,7 +43,7 @@ export function getStorageService(): StorageService {
   return storageService
 }
 
-export { createDeliverableStorageKey, createUploadStorageKey, sanitizeFileName } from './keys'
+export { createCommentAttachmentStorageKey, createDeliverableStorageKey, createUploadStorageKey, sanitizeFileName } from './keys'
 export { storageConfig } from './config'
 export type {
   ObjectHeadResult,

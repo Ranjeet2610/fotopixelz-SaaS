@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const orderStatusSchema = z.enum([
   'DRAFT',
+  'SUBMITTED',
   'UPLOADED',
   'PENDING',
   'ASSIGNED',
@@ -24,6 +25,7 @@ export const listOrdersQuerySchema = z.object({
   scope: orderScopeSchema.optional(),
   organizationId: z.string().min(1).optional(),
   status: orderStatusSchema.optional(),
+  search: z.string().trim().min(1).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(50)
 })
@@ -71,10 +73,26 @@ export const updateOrderSchema = z
     message: 'At least one field is required'
   })
 
-export const updateOrderStatusSchema = z.object({
-  orderId: z.string().min(1),
-  status: orderStatusSchema
-})
+export const updateOrderStatusSchema = z
+  .object({
+    orderId: z.string().min(1),
+    status: orderStatusSchema,
+    revisionTitle: z.string().trim().min(1).max(120).optional(),
+    revisionComment: z.string().trim().min(1).max(2000).optional(),
+    assetId: z.string().min(1).optional(),
+    attachmentStorageKey: z.string().min(1).optional(),
+    attachmentFileName: z.string().min(1).optional(),
+    attachmentMimeType: z.string().min(1).optional()
+  })
+  .superRefine((value, ctx) => {
+    if (value.status === 'REVISION_REQUIRED') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Use POST /orders/request-revision to request changes',
+        path: ['status']
+      })
+    }
+  })
 
 export const assignEditorSchema = z.object({
   orderId: z.string().min(1),
@@ -89,5 +107,9 @@ export const assignQaSchema = z.object({
 export const requestOrderRevisionSchema = z.object({
   orderId: z.string().min(1),
   title: z.string().trim().min(1).max(120),
-  comment: z.string().trim().min(1).max(2000)
+  comment: z.string().trim().min(1).max(2000),
+  assetId: z.string().min(1).optional(),
+  attachmentStorageKey: z.string().min(1).optional(),
+  attachmentFileName: z.string().min(1).optional(),
+  attachmentMimeType: z.string().min(1).optional()
 })

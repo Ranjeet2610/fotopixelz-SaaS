@@ -358,6 +358,8 @@ export async function completeDeliverableUpload(
   }
 
   const updatedAsset = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT id FROM "Order" WHERE id = ${asset.orderId} FOR UPDATE`
+
     const order = await tx.order.findUnique({
       where: { id: asset.orderId },
       select: {
@@ -371,18 +373,24 @@ export async function completeDeliverableUpload(
       throw new AppError(404, 'Order not found')
     }
 
-    const currentBatchCount = await tx.asset.count({
-      where: {
-        orderId: order.id,
-        reviewRound: order.reviewRound,
-        isCurrent: true,
-        isDeleted: false,
-        status: 'READY'
-      }
-    })
+    const readyInActiveBatch =
+      order.deliverableVersion > 0
+        ? await tx.asset.count({
+            where: {
+              orderId: order.id,
+              reviewRound: order.reviewRound,
+              version: order.deliverableVersion,
+              status: { in: ['READY', 'DELIVERED'] },
+              isDeleted: false
+            }
+          })
+        : 0
 
     let nextVersion = order.deliverableVersion
-    if (currentBatchCount === 0) {
+
+    if (readyInActiveBatch > 0) {
+      nextVersion = order.deliverableVersion
+    } else {
       nextVersion = order.deliverableVersion + 1
       await tx.order.update({
         where: { id: order.id },
@@ -392,7 +400,13 @@ export async function completeDeliverableUpload(
         where: {
           orderId: order.id,
           isDeleted: false,
-          id: { not: asset.id }
+          OR: [
+            { reviewRound: { lt: order.reviewRound } },
+            {
+              reviewRound: order.reviewRound,
+              version: { lt: nextVersion }
+            }
+          ]
         },
         data: { isCurrent: false }
       })

@@ -23,6 +23,7 @@ type OrderProductionWorkspaceProps = {
   organizationId: string;
   orderId: string;
   deliverableVersion: number;
+  reviewRound: number;
   uploads: ApiRecord[];
   uploadsLoading: boolean;
   assets: ApiRecord[];
@@ -47,6 +48,7 @@ export function OrderProductionWorkspace({
   organizationId,
   orderId,
   deliverableVersion,
+  reviewRound,
   uploads,
   uploadsLoading,
   assets,
@@ -115,6 +117,8 @@ export function OrderProductionWorkspace({
           <QaReviewPanel
             orderId={orderId}
             orderStatus={orderStatus}
+            deliverableVersion={deliverableVersion}
+            reviewRound={reviewRound}
             assets={assets}
             assetsLoading={assetsLoading}
             workflowEvents={workflowEvents}

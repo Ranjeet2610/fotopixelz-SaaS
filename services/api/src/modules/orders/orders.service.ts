@@ -4,9 +4,14 @@ import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
 import { countCurrentReadyDeliverables } from '../assets/assets.service'
 import { buildQuote } from '../pricing/pricing.service'
+import { generateOrderNumber, isPreUploadOrderStatus } from './order-number'
 import { calculateOrderBilling } from './order-billing'
 import { assertAllowedStatusTransition } from './order-status-transitions'
 import { recordOrderStatusChange, recordWorkflowEvent } from '../workflow/workflow.service'
+import {
+  createRevisionOrderComment,
+  createSystemOrderComment
+} from '../order-comments/order-comments.service'
 import type {
   AssignEditorInput,
   AssignQaInput,
@@ -21,7 +26,7 @@ import type {
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN'] as const
 const CREATE_ROLES = ['CLIENT', 'ADMIN', 'SUPER_ADMIN'] as const
-const CLIENT_STATUS_UPDATES: readonly OrderStatus[] = ['DRAFT', 'UPLOADED', 'PENDING', 'CANCELLED']
+const CLIENT_STATUS_UPDATES: readonly OrderStatus[] = ['DRAFT', 'SUBMITTED', 'UPLOADED', 'PENDING', 'CANCELLED']
 const EDITOR_STATUS_UPDATES: readonly OrderStatus[] = ['IN_PROGRESS', 'READY_FOR_QA']
 const QA_STATUS_UPDATES: readonly OrderStatus[] = ['DELIVERED', 'REVISION_REQUIRED']
 const ASSIGNABLE_ORDER_STATUSES: readonly OrderStatus[] = ['PENDING']
@@ -77,6 +82,7 @@ const orderAddonSelect = {
 
 const orderSelect = {
   id: true,
+  orderNumber: true,
   organizationId: true,
   createdById: true,
   categoryId: true,
@@ -180,8 +186,11 @@ export async function createOrder(context: RequestContext, input: CreateOrderInp
   const totalImages = hasCatalogLines ? quote.totalImageCount : input.totalImages
   const creditsUsed = hasCatalogLines ? quote.creditsUsed : input.creditsUsed
 
+  const orderNumber = await generateOrderNumber()
+
   const order = await prisma.order.create({
     data: {
+      orderNumber,
       organizationId: input.organizationId,
       createdById: context.userId,
       categoryId: input.categoryId ?? null,
@@ -194,7 +203,7 @@ export async function createOrder(context: RequestContext, input: CreateOrderInp
       priority: input.priority,
       dueDate: input.dueDate ?? null,
       dueAt: input.dueDate ?? null,
-      status: 'DRAFT',
+      status: 'SUBMITTED',
       ...(quote.items.length > 0
         ? {
             items: {
@@ -232,7 +241,8 @@ export async function createOrder(context: RequestContext, input: CreateOrderInp
     eventType: 'ORDER_CREATED',
     payload: {
       title: order.title,
-      status: order.status
+      status: order.status,
+      orderNumber: order.orderNumber
     }
   })
 
@@ -253,8 +263,8 @@ export async function updateOrder(context: RequestContext, orderId: string, inpu
   await ensureCategoryExists(input.categoryId === null ? undefined : input.categoryId)
 
   const pricingChanged = input.items !== undefined || input.addons !== undefined
-  if (pricingChanged && order.status !== 'DRAFT') {
-    throw new AppError(400, 'Order pricing lines can only be modified while in DRAFT status')
+  if (pricingChanged && !isPreUploadOrderStatus(order.status)) {
+    throw new AppError(400, 'Order pricing lines can only be modified while awaiting uploads')
   }
 
   let quoteUpdate: Awaited<ReturnType<typeof buildQuote>> | undefined
@@ -353,6 +363,10 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
   const order = await findActiveOrder(input.orderId)
   await ensureCanUpdateStatus(context, order, input.status)
 
+  if (input.status === 'REVISION_REQUIRED' && order.status !== 'REVISION_REQUIRED') {
+    throw new AppError(400, 'Use POST /orders/request-revision to request changes')
+  }
+
   if (
     !isAdmin(context) &&
     order.status !== input.status &&
@@ -400,10 +414,44 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
     await ensureOrderHasDeliverables(order.id)
   }
 
+  if (
+    input.status === 'REVISION_REQUIRED' &&
+    order.status !== 'REVISION_REQUIRED' &&
+    context.role === 'QA'
+  ) {
+    if (!input.revisionTitle || !input.revisionComment) {
+      throw new AppError(400, 'Revision notes are required when requesting changes')
+    }
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
+    if (input.status === 'REVISION_REQUIRED' && order.status === 'READY_FOR_QA') {
+      await tx.asset.updateMany({
+        where: {
+          orderId: order.id,
+          reviewRound: order.reviewRound,
+          isDeleted: false
+        },
+        data: {
+          isCurrent: false,
+          qaNotes: {
+            title: input.revisionTitle ?? 'Revision requested',
+            comment: input.revisionComment ?? '',
+            reviewRound: order.reviewRound,
+            requestedAt: new Date().toISOString()
+          }
+        }
+      })
+    }
+
     const nextOrder = await tx.order.update({
       where: { id: order.id },
-      data: { status: input.status },
+      data: {
+        status: input.status,
+        ...(input.status === 'REVISION_REQUIRED' && order.status === 'READY_FOR_QA'
+          ? { reviewRound: order.reviewRound + 1 }
+          : {})
+      },
       select: orderSelect
     })
 
@@ -428,8 +476,31 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
       orderId: order.id,
       actorId: context.userId,
       fromStatus: order.status,
-      toStatus: input.status
+      toStatus: input.status,
+      note:
+        input.status === 'REVISION_REQUIRED' ? input.revisionComment : undefined,
+      extraPayload:
+        input.status === 'REVISION_REQUIRED'
+          ? {
+              title: input.revisionTitle,
+              comment: input.revisionComment,
+              reviewRound: order.reviewRound,
+              assetId: input.assetId
+            }
+          : undefined
     })
+
+    if (input.status === 'REVISION_REQUIRED' && input.revisionTitle && input.revisionComment) {
+      await createRevisionOrderComment(context, {
+        orderId: order.id,
+        title: input.revisionTitle,
+        comment: input.revisionComment,
+        assetId: input.assetId,
+        attachmentStorageKey: input.attachmentStorageKey,
+        attachmentFileName: input.attachmentFileName,
+        attachmentMimeType: input.attachmentMimeType
+      })
+    }
   }
 
   return updated
@@ -556,6 +627,13 @@ export async function assignEditor(context: RequestContext, input: AssignEditorI
     }
   })
 
+  const editor = await prisma.user.findFirst({
+    where: { id: input.editorId },
+    select: { name: true, email: true }
+  })
+  const editorLabel = editor?.name ?? editor?.email ?? 'editor'
+  await createSystemOrderComment(order.id, `${order.orderNumber}: Order assigned to ${editorLabel}`, context.userId)
+
   return updated
 }
 
@@ -589,6 +667,13 @@ export async function assignQa(context: RequestContext, input: AssignQaInput) {
     }
   })
 
+  const qaUser = await prisma.user.findFirst({
+    where: { id: input.qaId },
+    select: { name: true, email: true }
+  })
+  const qaLabel = qaUser?.name ?? qaUser?.email ?? 'QA reviewer'
+  await createSystemOrderComment(order.id, `${order.orderNumber}: QA reviewer assigned: ${qaLabel}`, context.userId)
+
   return updated
 }
 
@@ -596,7 +681,15 @@ async function buildListWhere(context: RequestContext, query: ListOrdersQuery): 
   const base: Prisma.OrderWhereInput = {
     isDeleted: false,
     ...(query.organizationId ? { organizationId: query.organizationId } : {}),
-    ...(query.status ? { status: query.status } : {})
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { orderNumber: { contains: query.search, mode: 'insensitive' } },
+            { title: { contains: query.search, mode: 'insensitive' } }
+          ]
+        }
+      : {})
   }
 
   if (isAdmin(context)) {
@@ -611,7 +704,7 @@ async function buildListWhere(context: RequestContext, query: ListOrdersQuery): 
     if (!query.status) {
       return {
         ...base,
-        status: { notIn: ['DRAFT', 'UPLOADED'] }
+        status: { notIn: ['DRAFT', 'SUBMITTED', 'UPLOADED'] }
       }
     }
 
@@ -636,7 +729,7 @@ async function buildListWhere(context: RequestContext, query: ListOrdersQuery): 
     return {
       ...base,
       assignedEditorId: context.userId,
-      ...(!query.status ? { status: { notIn: ['DRAFT', 'UPLOADED'] } } : {})
+      ...(!query.status ? { status: { notIn: ['DRAFT', 'SUBMITTED', 'UPLOADED'] } } : {})
     }
   }
 
@@ -823,8 +916,19 @@ export async function requestOrderRevision(context: RequestContext, input: Reque
       reviewRound: order.reviewRound,
       nextReviewRound,
       fromStatus: 'READY_FOR_QA',
-      toStatus: 'REVISION_REQUIRED'
+      toStatus: 'REVISION_REQUIRED',
+      assetId: input.assetId
     }
+  })
+
+  await createRevisionOrderComment(context, {
+    orderId: order.id,
+    title: input.title,
+    comment: input.comment,
+    assetId: input.assetId,
+    attachmentStorageKey: input.attachmentStorageKey,
+    attachmentFileName: input.attachmentFileName,
+    attachmentMimeType: input.attachmentMimeType
   })
 
   return updated

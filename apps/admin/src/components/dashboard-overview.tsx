@@ -70,7 +70,7 @@ export function DashboardOverview() {
 
       <section className="kpi-grid">
         <KpiCard label="Total Orders" value={orders.data.total ?? orderItems.length} />
-        <KpiCard label="Pending Orders" value={countStatus(orderItems, ["DRAFT", "UPLOADED", "PENDING"])} />
+        <KpiCard label="Pending Orders" value={countStatus(orderItems, ["DRAFT", "SUBMITTED", "UPLOADED", "PENDING"])} />
         <KpiCard label="In Progress" value={countStatus(orderItems, ["ASSIGNED", "IN_PROGRESS"])} />
         <KpiCard label="Pending QA" value={pendingQa} />
         <KpiCard label="Delivered" value={countStatus(orderItems, ["DELIVERED"])} />

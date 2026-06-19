@@ -21,6 +21,7 @@ import notificationsRouter from "./modules/notifications/notifications.routes"
 import analyticsRouter from "./modules/analytics/analytics.routes"
 import adminRouter from "./modules/admin/admin.routes"
 import workflowRouter from "./modules/workflow/workflow.routes"
+import orderCommentsRouter from "./modules/order-comments/order-comments.routes"
 import auditLogsRouter from "./modules/audit-logs/audit-logs.routes"
 import { errorHandler } from "./common/middleware/error-handler"
 
@@ -58,6 +59,7 @@ app.use("/api/v1/notifications", notificationsRouter)
 app.use("/api/v1/analytics", analyticsRouter)
 app.use("/api/v1/admin", adminRouter)
 app.use("/api/v1/workflow", workflowRouter)
+app.use("/api/v1/order-comments", orderCommentsRouter)
 app.use("/api/v1/audit-logs", auditLogsRouter)
 
 app.use(errorHandler)

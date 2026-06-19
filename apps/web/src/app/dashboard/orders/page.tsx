@@ -114,7 +114,7 @@ export default function OrdersPage() {
             <div className="rounded-xl border border-dashed p-8 text-center">
               <p className="font-medium">No orders yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Use the guided wizard to create your first draft order.
+                Use the guided wizard to place your first order.
               </p>
               <Button asChild className="mt-4">
                 <Link href="/dashboard/orders/new">Create order</Link>
@@ -140,7 +140,7 @@ export default function OrdersPage() {
                       <div className="flex flex-col">
                         <span className="font-medium">{order.title}</span>
                         <span className="font-mono text-xs text-muted-foreground">
-                          #{formatOrderNumber(order.id)}
+                          {formatOrderNumber(order)}
                         </span>
                       </div>
                     </TableCell>

@@ -30,7 +30,7 @@ function stepState(orderStatus: string, stepStatuses: readonly string[], stepInd
 }
 
 export function OrderStatusTimeline({ status }: { status: string }) {
-  if (status === "DRAFT" || status === "UPLOADED") {
+  if (status === "DRAFT" || status === "SUBMITTED" || status === "UPLOADED") {
     return null;
   }
 

@@ -22,3 +22,11 @@ export function createDeliverableStorageKey(input: {
 }) {
   return `deliverables/${input.organizationId}/${input.orderId}/${crypto.randomUUID()}-${sanitizeFileName(input.fileName)}`
 }
+
+export function createCommentAttachmentStorageKey(input: {
+  organizationId: string
+  orderId: string
+  fileName: string
+}) {
+  return `comments/${input.organizationId}/${input.orderId}/${crypto.randomUUID()}-${sanitizeFileName(input.fileName)}`
+}

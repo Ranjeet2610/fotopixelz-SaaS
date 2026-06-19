@@ -97,6 +97,7 @@ export type OrderAddonLine = {
 
 export type CreatedOrder = {
   id: string;
+  orderNumber: string;
   organizationId?: string;
   title: string;
   status: string;
