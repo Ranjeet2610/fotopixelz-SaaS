@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api-client";
 import type { AssetDownload, AssetRecord, PaginatedAssets } from "@/lib/asset-types";
+import { triggerFileDownload } from "@/lib/download-utils";
 
 export async function listAssets(query: {
   organizationId?: string;
@@ -17,19 +18,14 @@ export async function listOrderDeliverables(orderId: string) {
 }
 
 export async function getAssetDownloadUrl(assetId: string) {
-  return apiRequest<AssetDownload>(`/assets/${assetId}/download-url`);
+  return apiRequest<AssetDownload>(`/assets/${assetId}/download-url`, {
+    query: { download: "true" },
+  });
 }
 
 export async function downloadAsset(asset: AssetRecord) {
   const { downloadUrl } = await getAssetDownloadUrl(asset.id);
-  const anchor = document.createElement("a");
-  anchor.href = downloadUrl;
-  anchor.download = asset.fileName || asset.name;
-  anchor.rel = "noopener";
-  anchor.target = "_blank";
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+  await triggerFileDownload(downloadUrl, asset.fileName || asset.name);
 }
 
 export async function downloadAllAssets(assets: AssetRecord[]) {

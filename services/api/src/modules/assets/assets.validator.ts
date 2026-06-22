@@ -63,7 +63,8 @@ export const deliverablePresignedUrlSchema = z.object({
   name: z.string().trim().min(1).optional(),
   fileName: z.string().trim().min(1),
   mimeType: z.string().trim().min(1),
-  fileSize: z.number().int().nonnegative()
+  fileSize: z.number().int().nonnegative(),
+  replacesAssetId: z.string().min(1).optional()
 })
 
 export const completeDeliverableSchema = z.object({

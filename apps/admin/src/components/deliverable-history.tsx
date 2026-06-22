@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { downloadDeliverable } from "@/lib/asset-client";
-import { groupDeliverablesByVersion, toDeliverableRecords } from "@/lib/asset-gallery-adapter";
+import { useRef, useState } from "react";
+import { deleteDeliverable, downloadDeliverable, uploadDeliverableFile } from "@/lib/asset-client";
+import {
+  getCurrentDeliverables,
+  groupDeliverablesByVersion,
+  toDeliverableRecords,
+} from "@/lib/asset-gallery-adapter";
 import { downloadAllSequentially } from "@/lib/upload-utils";
 import { dateValue, textValue } from "@/lib/format";
 import type { ApiRecord } from "@/lib/types";
@@ -11,11 +15,31 @@ import { Button } from "./ui";
 type DeliverableHistoryProps = {
   assets: ApiRecord[];
   loading?: boolean;
+  canManage?: boolean;
+  organizationId?: string;
+  orderId?: string;
+  deliverableVersion?: number;
+  reviewRound?: number;
+  onChanged?: () => void;
 };
 
-export function DeliverableHistory({ assets, loading = false }: DeliverableHistoryProps) {
+export function DeliverableHistory({
+  assets,
+  loading = false,
+  canManage = false,
+  organizationId,
+  orderId,
+  deliverableVersion = 0,
+  reviewRound = 1,
+  onChanged,
+}: DeliverableHistoryProps) {
   const [busyVersion, setBusyVersion] = useState<number | null>(null);
+  const [busyAssetId, setBusyAssetId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const [replaceAssetId, setReplaceAssetId] = useState<string | null>(null);
   const groups = groupDeliverablesByVersion(assets);
+  const currentBatchAssets = getCurrentDeliverables(assets, { deliverableVersion, reviewRound });
 
   if (loading) {
     return <p className="upload-gallery-loading">Loading deliverable history…</p>;
@@ -42,8 +66,69 @@ export function DeliverableHistory({ assets, loading = false }: DeliverableHisto
     }
   }
 
+  async function handleRemove(assetId: string) {
+    setBusyAssetId(assetId);
+    setError(null);
+    try {
+      await deleteDeliverable(assetId);
+      onChanged?.();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to remove deliverable");
+    } finally {
+      setBusyAssetId(null);
+    }
+  }
+
+  function startReplace(assetId: string) {
+    setReplaceAssetId(assetId);
+    replaceInputRef.current?.click();
+  }
+
+  async function handleReplaceFileSelected(file: File | undefined) {
+    if (!file || !replaceAssetId || !organizationId || !orderId) {
+      setReplaceAssetId(null);
+      return;
+    }
+
+    const assetId = replaceAssetId;
+    setReplaceAssetId(null);
+    setBusyAssetId(assetId);
+    setError(null);
+
+    try {
+      await uploadDeliverableFile({
+        organizationId,
+        orderId,
+        file,
+        replacesAssetId: assetId,
+      });
+      onChanged?.();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to replace deliverable");
+    } finally {
+      setBusyAssetId(null);
+      if (replaceInputRef.current) {
+        replaceInputRef.current.value = "";
+      }
+    }
+  }
+
+  function canManageAsset(assetId: string) {
+    return canManage && currentBatchAssets.some((asset) => textValue(asset.id) === assetId);
+  }
+
   return (
     <div className="deliverable-history">
+      <input
+        ref={replaceInputRef}
+        type="file"
+        className="sr-only"
+        accept="image/*,.tif,.tiff"
+        onChange={(event) => void handleReplaceFileSelected(event.target.files?.[0])}
+      />
+
+      {error ? <p className="form-error">{error}</p> : null}
+
       {groups.map((group) => (
         <section
           className={`deliverable-version-card${group.isCurrent ? " deliverable-version-card-current" : ""}`}
@@ -86,18 +171,42 @@ export function DeliverableHistory({ assets, loading = false }: DeliverableHisto
           <ul className="deliverable-version-files">
             {group.items.map((item) => {
               const record = toDeliverableRecords([item])[0];
+              const assetId = textValue(item.id);
+              const manageable = canManageAsset(assetId);
               return (
-                <li key={textValue(item.id)}>
+                <li key={assetId}>
                   <span className="deliverable-file-name" title={record?.fileName ?? record?.name}>
                     {record?.fileName ?? record?.name}
                   </span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => void downloadDeliverable(record)}
-                  >
-                    Download
-                  </Button>
+                  <div className="button-row">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void downloadDeliverable(record)}
+                    >
+                      Download
+                    </Button>
+                    {manageable ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busyAssetId === assetId}
+                          onClick={() => void handleRemove(assetId)}
+                        >
+                          {busyAssetId === assetId ? "Removing…" : "Remove"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busyAssetId === assetId}
+                          onClick={() => startReplace(assetId)}
+                        >
+                          Replace
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </li>
               );
             })}

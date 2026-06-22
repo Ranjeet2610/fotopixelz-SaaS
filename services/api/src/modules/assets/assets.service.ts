@@ -8,6 +8,12 @@ import {
   storageConfig
 } from '../../integrations/storage'
 import { recordWorkflowEvent } from '../workflow/workflow.service'
+import {
+  archiveReplacedDeliverable,
+  assertCanAddDeliverables,
+  countActiveBatchDeliverables,
+  getActiveBatchContext
+} from './deliverable-integrity'
 import type {
   CompleteDeliverableInput,
   CreateAssetInput,
@@ -195,6 +201,7 @@ export async function deleteAsset(context: RequestContext, assetId: string) {
     where: { id: asset.id },
     data: {
       isDeleted: true,
+      isCurrent: false,
       status: 'ARCHIVED'
     }
   })
@@ -281,6 +288,9 @@ export async function createDeliverablePresignedUrl(
 ) {
   const order = await ensureOrderForAsset(input.organizationId, input.orderId)
   await ensureCanCreateAsset(context, order)
+  await assertCanAddDeliverables(input.orderId, 1, {
+    replacesAssetId: input.replacesAssetId
+  })
 
   const storage = getStorageService()
   const storageKey = createDeliverableStorageKey({
@@ -310,6 +320,7 @@ export async function createDeliverablePresignedUrl(
       status: 'PENDING',
       reviewRound: order.reviewRound,
       isCurrent: false,
+      replacesAssetId: input.replacesAssetId ?? null,
       createdById: context.userId
     },
     select: assetSelect
@@ -355,6 +366,13 @@ export async function completeDeliverableUpload(
 
   if (!verified) {
     throw new AppError(400, 'Deliverable upload verification failed')
+  }
+
+  if (!asset.replacesAssetId) {
+    // Slot was reserved at presigned-url time; exclude this asset from pending counts.
+    await assertCanAddDeliverables(asset.orderId, 1, {
+      excludeAssetIds: [asset.id]
+    })
   }
 
   const updatedAsset = await prisma.$transaction(async (tx) => {
@@ -412,6 +430,10 @@ export async function completeDeliverableUpload(
       })
     }
 
+    if (asset.replacesAssetId) {
+      await archiveReplacedDeliverable(tx, asset.replacesAssetId, order.id)
+    }
+
     return tx.asset.update({
       where: { id: asset.id },
       data: {
@@ -444,19 +466,29 @@ export async function completeDeliverableUpload(
   return updatedAsset
 }
 
-export async function getAssetDownloadUrl(context: RequestContext, assetId: string) {
+export async function getAssetDownloadUrl(
+  context: RequestContext,
+  assetId: string,
+  options?: { download?: boolean }
+) {
   const asset = await findActiveAsset(assetId)
   await ensureCanViewAsset(context, asset)
 
   const storage = getStorageService()
   const signed = await storage.createPresignedGetUrl({
     storageKey: asset.storageKey,
-    expiresInSeconds: storageConfig.downloadExpirySeconds
+    expiresInSeconds: storageConfig.downloadExpirySeconds,
+    ...(options?.download
+      ? {
+          responseContentDisposition: `attachment; filename="${encodeURIComponent(asset.fileName)}"`
+        }
+      : {})
   })
 
   return {
     downloadUrl: signed.downloadUrl,
-    expiresIn: signed.expiresInSeconds
+    expiresIn: signed.expiresInSeconds,
+    fileName: asset.fileName
   }
 }
 
@@ -621,15 +653,13 @@ async function ensureOrderForAsset(organizationId: string, orderId: string) {
 }
 
 export async function countCurrentReadyDeliverables(orderId: string, reviewRound?: number) {
-  return prisma.asset.count({
-    where: {
-      orderId,
-      isDeleted: false,
-      isCurrent: true,
-      status: 'READY',
-      ...(reviewRound ? { reviewRound } : {})
-    }
-  })
+  const batch = await getActiveBatchContext(orderId)
+
+  if (reviewRound && reviewRound !== batch.reviewRound) {
+    return 0
+  }
+
+  return countActiveBatchDeliverables(orderId, batch, ['READY', 'DELIVERED'])
 }
 
 async function ensureCanCreateAsset(

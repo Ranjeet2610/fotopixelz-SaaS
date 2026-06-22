@@ -6,6 +6,7 @@ import { downloadUpload, getUploadPreviewUrl } from "@/lib/upload-client";
 import { toSourceUploadRecords } from "@/lib/upload-gallery-adapter";
 import { downloadAllSequentially } from "@/lib/upload-utils";
 import {
+  computeDeliverableQuota,
   countCurrentReadyDeliverables,
   getNextUploadVersion,
 } from "@/lib/asset-gallery-adapter";
@@ -70,6 +71,14 @@ export function OrderProductionWorkspace({
     () => getNextUploadVersion(assets, deliverableVersion),
     [assets, deliverableVersion],
   );
+  const deliverableQuota = useMemo(
+    () =>
+      computeDeliverableQuota(uploadedSources.length, assets, {
+        deliverableVersion,
+        reviewRound,
+      }),
+    [assets, deliverableVersion, reviewRound, uploadedSources.length],
+  );
 
   const fetchUploadPreview = useCallback(
     (uploadId: string) => getUploadPreviewUrl(uploadId),
@@ -119,6 +128,7 @@ export function OrderProductionWorkspace({
             orderStatus={orderStatus}
             deliverableVersion={deliverableVersion}
             reviewRound={reviewRound}
+            sourceImageCount={uploadedSources.length}
             assets={assets}
             assetsLoading={assetsLoading}
             workflowEvents={workflowEvents}
@@ -147,6 +157,11 @@ export function OrderProductionWorkspace({
           <DeliverableUploadPanel
             organizationId={organizationId}
             orderId={orderId}
+            disabled={deliverableQuota.remainingAllowed === 0}
+            sourceImageCount={deliverableQuota.sourceImageCount}
+            uploadedCount={deliverableQuota.uploadedCount}
+            pendingCount={deliverableQuota.pendingCount}
+            remainingAllowed={deliverableQuota.remainingAllowed}
             onUploaded={onAssetsReload}
           />
         </Card>
@@ -158,7 +173,16 @@ export function OrderProductionWorkspace({
           {delivered ? (
             <p className="muted-copy">This order has been delivered. Deliverables are read-only.</p>
           ) : null}
-          <DeliverableHistory assets={assets} loading={assetsLoading} />
+          <DeliverableHistory
+            assets={assets}
+            loading={assetsLoading}
+            canManage={!delivered && isEditorProductionStatus(orderStatus)}
+            organizationId={organizationId}
+            orderId={orderId}
+            deliverableVersion={deliverableVersion}
+            reviewRound={reviewRound}
+            onChanged={onAssetsReload}
+          />
         </Card>
       ) : null}
     </section>

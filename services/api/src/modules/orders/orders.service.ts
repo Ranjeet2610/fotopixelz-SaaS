@@ -3,6 +3,7 @@ import { requireRole } from '@repo/auth'
 import { AppError } from '../../common/errors/app-error'
 import { prisma } from '../../database/prisma'
 import { countCurrentReadyDeliverables } from '../assets/assets.service'
+import { assertSourceDeliverableCountMatch, countActiveBatchDeliverables, getActiveBatchContext } from '../assets/deliverable-integrity'
 import { buildQuote } from '../pricing/pricing.service'
 import { generateOrderNumber, isPreUploadOrderStatus } from './order-number'
 import { calculateOrderBilling } from './order-billing'
@@ -405,6 +406,8 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
           : 'Upload at least one deliverable before submitting to QA.'
       )
     }
+
+    await assertSourceDeliverableCountMatch(order.id)
   }
 
   if (input.status === 'DELIVERED' && order.status !== 'DELIVERED') {
@@ -412,6 +415,7 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
       throw new AppError(400, 'Order must pass QA review before it can be delivered')
     }
     await ensureOrderHasDeliverables(order.id)
+    await assertSourceDeliverableCountMatch(order.id)
   }
 
   if (
@@ -935,14 +939,8 @@ export async function requestOrderRevision(context: RequestContext, input: Reque
 }
 
 async function ensureOrderHasDeliverables(orderId: string) {
-  const assetCount = await prisma.asset.count({
-    where: {
-      orderId,
-      isDeleted: false,
-      isCurrent: true,
-      status: { in: ['READY', 'DELIVERED'] }
-    }
-  })
+  const batch = await getActiveBatchContext(orderId)
+  const assetCount = await countActiveBatchDeliverables(orderId, batch, ['READY', 'DELIVERED'])
 
   if (assetCount === 0) {
     throw new AppError(400, 'At least one current deliverable is required before delivery.')

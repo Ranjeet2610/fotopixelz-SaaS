@@ -53,6 +53,13 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
   const qaUsers = useApiList<ApiRecord>("/admin/users/qa", { limit: 100 }, canManage);
   const lineItems = Array.isArray(order.data?.items) ? order.data.items : [];
   const orderAddons = Array.isArray(order.data?.addons) ? order.data.addons : [];
+  const uploadedSourceCount = useMemo(
+    () =>
+      uploads.data.items.filter(
+        (upload) => textValue(upload.status) === "UPLOADED" && !upload.isDeleted,
+      ).length,
+    [uploads.data.items],
+  );
   const servicesSubtotal = lineItems.reduce((sum, item) => sum + numberValue(item.subtotal), 0);
   const addonsSubtotal = orderAddons.reduce((sum, addon) => sum + numberValue(addon.subtotal), 0);
 
@@ -67,7 +74,10 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
   const assignedQaId = textValue(order.data?.assignedQaId, "");
   const hasAssignedQa = Boolean(assignedQaId && assignedQaId !== "-");
   const isDelivered = currentStatus === "DELIVERED";
-  const canMarkReadyForQa = !isDelivered && readyDeliverableCount > 0 && hasAssignedQa;
+  const deliverableCountsMatch =
+    uploadedSourceCount > 0 && readyDeliverableCount === uploadedSourceCount;
+  const canMarkReadyForQa =
+    !isDelivered && readyDeliverableCount > 0 && hasAssignedQa && deliverableCountsMatch;
 
   const showProductionWorkspace = role === "EDITOR" || role === "QA" || canManage;
   const allAssets = assets.data.items;
@@ -157,6 +167,12 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
                     {currentStatus === "REVISION_REQUIRED"
                       ? "Upload revised deliverables before submitting to QA."
                       : "Upload at least one deliverable before sending to QA."}
+                  </p>
+                ) : null}
+                {hasAssignedQa && readyDeliverableCount > 0 && !deliverableCountsMatch ? (
+                  <p className="form-error">
+                    Source and deliverable counts do not match. Source images: {uploadedSourceCount},
+                    deliverables: {readyDeliverableCount}.
                   </p>
                 ) : null}
               </div>

@@ -91,10 +91,14 @@ export class S3CompatibleStorageProvider implements StorageService {
   async createPresignedGetUrl(input: {
     storageKey: string
     expiresInSeconds: number
+    responseContentDisposition?: string
   }): Promise<PresignedGetResult> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
-      Key: input.storageKey
+      Key: input.storageKey,
+      ...(input.responseContentDisposition
+        ? { ResponseContentDisposition: input.responseContentDisposition }
+        : {})
     })
 
     const downloadUrl = await getSignedUrl(this.client, command, {

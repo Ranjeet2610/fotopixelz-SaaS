@@ -273,7 +273,9 @@ export async function getAssetDownloadUrlHandler(req: Request, res: Response) {
   }
 
   try {
-    const download = await getAssetDownloadUrl(context, params.data.assetId)
+    const download = await getAssetDownloadUrl(context, params.data.assetId, {
+      download: req.query.download === 'true'
+    })
     return res.status(200).json({ success: true, data: download })
   } catch (error) {
     return sendError(res, error)

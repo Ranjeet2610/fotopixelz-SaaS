@@ -34,6 +34,7 @@ export interface StorageService {
   createPresignedGetUrl(input: {
     storageKey: string
     expiresInSeconds: number
+    responseContentDisposition?: string
   }): Promise<PresignedGetResult>
   headObject(storageKey: string): Promise<ObjectHeadResult>
   deleteObject(storageKey: string): Promise<void>

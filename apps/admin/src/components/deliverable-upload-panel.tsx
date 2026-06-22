@@ -18,6 +18,10 @@ type DeliverableUploadPanelProps = {
   organizationId: string;
   orderId: string;
   disabled?: boolean;
+  sourceImageCount: number;
+  uploadedCount: number;
+  pendingCount: number;
+  remainingAllowed: number;
   onUploaded: () => void;
 };
 
@@ -33,6 +37,10 @@ export function DeliverableUploadPanel({
   organizationId,
   orderId,
   disabled = false,
+  sourceImageCount,
+  uploadedCount,
+  pendingCount,
+  remainingAllowed,
   onUploaded,
 }: DeliverableUploadPanelProps) {
   const [items, setItems] = useState<LocalDeliverableItem[]>([]);
@@ -94,6 +102,24 @@ export function DeliverableUploadPanel({
         return;
       }
 
+      if (sourceImageCount === 0) {
+        setError("Source images must be uploaded before deliverables can be added.");
+        return;
+      }
+
+      if (imageFiles.length > remainingAllowed) {
+        setError(
+          [
+            "Maximum deliverables reached.",
+            `Source images: ${sourceImageCount}`,
+            `Existing deliverables: ${uploadedCount}`,
+            `Attempted upload: ${imageFiles.length}`,
+            `Maximum allowed: ${sourceImageCount}`,
+          ].join("\n"),
+        );
+        return;
+      }
+
       setError(null);
       const nextItems: LocalDeliverableItem[] = imageFiles.map((file) => ({
         localId: createLocalId(),
@@ -110,7 +136,7 @@ export function DeliverableUploadPanel({
         }
       })();
     },
-    [runUpload],
+    [remainingAllowed, runUpload, sourceImageCount, uploadedCount],
   );
 
   const removeItem = useCallback((localId: string) => {
@@ -145,6 +171,13 @@ export function DeliverableUploadPanel({
 
   return (
     <div className="deliverable-upload-panel">
+      <div className="deliverable-quota-summary stack-sm">
+        <p className="muted-copy">Source Images: {sourceImageCount}</p>
+        <p className="muted-copy">Uploaded: {uploadedCount}</p>
+        <p className="muted-copy">Remaining: {remainingAllowed}</p>
+        {pendingCount > 0 ? <p className="muted-copy">Pending upload: {pendingCount}</p> : null}
+      </div>
+
       <div
         className={`upload-dropzone${isDragging ? " upload-dropzone-active" : ""}${disabled ? " upload-dropzone-disabled" : ""}`}
         onDragOver={(event) => {
@@ -176,7 +209,7 @@ export function DeliverableUploadPanel({
         </label>
       </div>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <p className="form-error" style={{ whiteSpace: "pre-line" }}>{error}</p> : null}
 
       {items.length > 0 ? (
         <div className="upload-grid">

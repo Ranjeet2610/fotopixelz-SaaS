@@ -1,5 +1,6 @@
 import { apiRequest } from "@/lib/api-client";
 import type { DeliverableRecord } from "@repo/upload-gallery";
+import { triggerFileDownload } from "@/lib/download-utils";
 import { putFileWithProgress } from "@/lib/upload-utils";
 
 type DeliverablePresignedResult = {
@@ -22,6 +23,7 @@ export async function createDeliverablePresignedUrl(input: {
   organizationId: string;
   orderId: string;
   file: File;
+  replacesAssetId?: string;
 }) {
   return apiRequest<DeliverablePresignedResult>("/assets/presigned-url", {
     method: "POST",
@@ -32,6 +34,7 @@ export async function createDeliverablePresignedUrl(input: {
       name: input.file.name,
       mimeType: input.file.type || "application/octet-stream",
       fileSize: input.file.size,
+      ...(input.replacesAssetId ? { replacesAssetId: input.replacesAssetId } : {}),
     },
   });
 }
@@ -51,6 +54,7 @@ export async function uploadDeliverableFile(input: {
   organizationId: string;
   orderId: string;
   file: File;
+  replacesAssetId?: string;
   onProgress?: (progress: number) => void;
   signal?: AbortSignal;
 }) {
@@ -58,6 +62,7 @@ export async function uploadDeliverableFile(input: {
     organizationId: input.organizationId,
     orderId: input.orderId,
     file: input.file,
+    replacesAssetId: input.replacesAssetId,
   });
 
   await putFileWithProgress(
@@ -86,15 +91,11 @@ export async function getAssetPreviewUrl(assetId: string) {
 }
 
 export async function downloadDeliverable(deliverable: DeliverableRecord) {
-  const { previewUrl } = await getAssetPreviewUrl(deliverable.id);
-  const anchor = document.createElement("a");
-  anchor.href = previewUrl;
-  anchor.download = deliverable.fileName || deliverable.name;
-  anchor.rel = "noopener";
-  anchor.target = "_blank";
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
+  const result = await apiRequest<{ downloadUrl: string }>(
+    `/assets/${deliverable.id}/download-url`,
+    { query: { download: "true" } },
+  );
+  await triggerFileDownload(result.downloadUrl, deliverable.fileName || deliverable.name);
 }
 
 export async function deleteDeliverable(assetId: string) {

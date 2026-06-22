@@ -15,6 +15,7 @@ type QaReviewPanelProps = {
   orderStatus: string;
   deliverableVersion: number;
   reviewRound: number;
+  sourceImageCount: number;
   assets: ApiRecord[];
   assetsLoading: boolean;
   workflowEvents: ApiRecord[];
@@ -71,6 +72,7 @@ export function QaReviewPanel({
   orderStatus,
   deliverableVersion,
   reviewRound,
+  sourceImageCount,
   assets,
   assetsLoading,
   workflowEvents,
@@ -94,6 +96,9 @@ export function QaReviewPanel({
   const revisionNotes = useMemo(() => parseRevisionNotes(workflowEvents), [workflowEvents]);
   const approval = useMemo(() => parseApprovalRound(workflowEvents), [workflowEvents]);
   const canReview = orderStatus === "READY_FOR_QA";
+  const deliverableCount = currentRecords.length;
+  const countsMatch = sourceImageCount > 0 && deliverableCount === sourceImageCount;
+  const canApprove = canReview && countsMatch;
 
   const fetchAssetPreview = useCallback((id: string) => getAssetPreviewUrl(id), []);
 
@@ -190,8 +195,14 @@ export function QaReviewPanel({
       {canReview ? (
         <div>
           <h2 className="section-title">QA actions</h2>
+          <p className="muted-copy">
+            Source images: {sourceImageCount} · Deliverables: {deliverableCount}
+          </p>
+          {!countsMatch ? (
+            <p className="form-error">Source and deliverable counts do not match.</p>
+          ) : null}
           <div className="button-row">
-            <Button type="button" onClick={onApprove}>
+            <Button type="button" onClick={onApprove} disabled={!canApprove}>
               Approve
             </Button>
             <Button type="button" variant="secondary" onClick={() => setShowRevisionModal(true)}>

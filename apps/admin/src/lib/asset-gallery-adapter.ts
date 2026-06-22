@@ -101,6 +101,49 @@ export function countCurrentReadyDeliverables(rows: ApiRecord[], options?: Curre
   return getCurrentDeliverables(rows, options).length;
 }
 
+export function countPendingDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
+  const version = Number(options?.deliverableVersion ?? 0);
+  const reviewRound = Number(options?.reviewRound ?? 0);
+  const batchVersion = version > 0 ? version : 1;
+
+  return rows.filter((row) => {
+    if (row.isDeleted) {
+      return false;
+    }
+    if (stringField(row.status) !== "PENDING") {
+      return false;
+    }
+    const matchesRound = reviewRound <= 0 || Number(row.reviewRound ?? 1) === reviewRound;
+    const matchesVersion = Number(row.version ?? 0) === batchVersion;
+    return matchesRound && matchesVersion;
+  }).length;
+}
+
+export type DeliverableQuotaSummary = {
+  sourceImageCount: number;
+  uploadedCount: number;
+  pendingCount: number;
+  remainingAllowed: number;
+};
+
+export function computeDeliverableQuota(
+  sourceImageCount: number,
+  assets: ApiRecord[],
+  options?: CurrentDeliverableOptions,
+): DeliverableQuotaSummary {
+  const uploadedCount = countCurrentReadyDeliverables(assets, options);
+  const pendingCount = countPendingDeliverables(assets, options);
+  const maximumAllowed = sourceImageCount;
+  const remainingAllowed = Math.max(maximumAllowed - uploadedCount - pendingCount, 0);
+
+  return {
+    sourceImageCount,
+    uploadedCount,
+    pendingCount,
+    remainingAllowed,
+  };
+}
+
 
 
 export function getNextUploadVersion(rows: ApiRecord[], orderDeliverableVersion = 0) {
