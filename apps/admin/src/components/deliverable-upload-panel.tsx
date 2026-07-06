@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState, type DragEvent } from "react";
-import { uploadDeliverableFile } from "@/lib/asset-client";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { deleteDeliverable, uploadDeliverableFile } from "@/lib/asset-client";
+import { formatDeliverableQuotaError } from "@/lib/asset-gallery-adapter";
+import { textValue } from "@/lib/format";
 import { formatBytes } from "@/lib/upload-utils";
+import type { ApiRecord } from "@/lib/types";
 import { Button } from "./ui";
 
 type LocalDeliverableItem = {
@@ -22,7 +25,9 @@ type DeliverableUploadPanelProps = {
   uploadedCount: number;
   pendingCount: number;
   remainingAllowed: number;
+  pendingAssets?: ApiRecord[];
   onUploaded: () => void;
+  onAssetsChanged?: () => void;
 };
 
 function createLocalId() {
@@ -41,12 +46,26 @@ export function DeliverableUploadPanel({
   uploadedCount,
   pendingCount,
   remainingAllowed,
+  pendingAssets = [],
   onUploaded,
+  onAssetsChanged,
 }: DeliverableUploadPanelProps) {
   const [items, setItems] = useState<LocalDeliverableItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingPendingId, setCancellingPendingId] = useState<string | null>(null);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  useEffect(() => {
+    setError(null);
+    setItems((current) => current.filter((item) => item.status === "uploading" || item.status === "queued"));
+  }, [uploadedCount, pendingCount, remainingAllowed, orderId]);
+
+  const refreshAssets = useCallback(() => {
+    onAssetsChanged?.();
+  }, [onAssetsChanged]);
 
   const runUpload = useCallback(
     async (localId: string, file: File) => {
@@ -67,6 +86,7 @@ export function DeliverableUploadPanel({
           orderId,
           file,
           signal: controller.signal,
+          onPresignedCreated: refreshAssets,
           onProgress: (progress) => {
             setItems((current) =>
               current.map((item) => (item.localId === localId ? { ...item, progress } : item)),
@@ -78,6 +98,8 @@ export function DeliverableUploadPanel({
         onUploaded();
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") {
+          setItems((current) => current.filter((item) => item.localId !== localId));
+          refreshAssets();
           return;
         }
 
@@ -87,11 +109,12 @@ export function DeliverableUploadPanel({
             item.localId === localId ? { ...item, status: "failed", progress: 0, error: message } : item,
           ),
         );
+        refreshAssets();
       } finally {
         abortControllers.current.delete(localId);
       }
     },
-    [onUploaded, orderId, organizationId],
+    [onUploaded, orderId, organizationId, refreshAssets],
   );
 
   const queueFiles = useCallback(
@@ -107,15 +130,19 @@ export function DeliverableUploadPanel({
         return;
       }
 
-      if (imageFiles.length > remainingAllowed) {
+      const activeLocal = itemsRef.current.filter(
+        (item) => item.status === "queued" || item.status === "uploading",
+      ).length;
+      const totalAttempted = activeLocal + imageFiles.length;
+
+      if (totalAttempted > remainingAllowed) {
         setError(
-          [
-            "Maximum deliverables reached.",
-            `Source images: ${sourceImageCount}`,
-            `Existing deliverables: ${uploadedCount}`,
-            `Attempted upload: ${imageFiles.length}`,
-            `Maximum allowed: ${sourceImageCount}`,
-          ].join("\n"),
+          formatDeliverableQuotaError({
+            sourceImageCount,
+            uploadedCount,
+            pendingCount,
+            attemptedUpload: totalAttempted,
+          }),
         );
         return;
       }
@@ -136,7 +163,7 @@ export function DeliverableUploadPanel({
         }
       })();
     },
-    [remainingAllowed, runUpload, sourceImageCount, uploadedCount],
+    [pendingCount, remainingAllowed, runUpload, sourceImageCount, uploadedCount],
   );
 
   const removeItem = useCallback((localId: string) => {
@@ -154,6 +181,19 @@ export function DeliverableUploadPanel({
       return current.filter((item) => item.localId !== localId);
     });
   }, []);
+
+  async function handleCancelPending(assetId: string) {
+    setCancellingPendingId(assetId);
+    setError(null);
+    try {
+      await deleteDeliverable(assetId);
+      onUploaded();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to cancel pending upload");
+    } finally {
+      setCancellingPendingId(null);
+    }
+  }
 
   const onDrop = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
@@ -177,6 +217,30 @@ export function DeliverableUploadPanel({
         <p className="muted-copy">Remaining: {remainingAllowed}</p>
         {pendingCount > 0 ? <p className="muted-copy">Pending upload: {pendingCount}</p> : null}
       </div>
+
+      {pendingAssets.length > 0 ? (
+        <div className="stack-sm">
+          {pendingAssets.map((asset) => {
+            const assetId = textValue(asset.id);
+            const fileName = textValue(asset.fileName ?? asset.name, "Deliverable");
+            return (
+              <div className="button-row" key={assetId}>
+                <span className="muted-copy" title={fileName}>
+                  Pending: {fileName}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={cancellingPendingId === assetId}
+                  onClick={() => void handleCancelPending(assetId)}
+                >
+                  {cancellingPendingId === assetId ? "Cancelling…" : "Cancel Pending Upload"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       <div
         className={`upload-dropzone${isDragging ? " upload-dropzone-active" : ""}${disabled ? " upload-dropzone-disabled" : ""}`}

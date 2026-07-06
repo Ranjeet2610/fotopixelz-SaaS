@@ -193,18 +193,78 @@ export async function updateAsset(context: RequestContext, assetId: string, inpu
   })
 }
 
-export async function deleteAsset(context: RequestContext, assetId: string) {
-  const asset = await findActiveAsset(assetId)
-  await ensureCanDeleteAsset(context, asset)
+const ORPHAN_PENDING_MIN_AGE_MS = 2 * 60 * 1000
+const ORPHAN_PENDING_MAX_AGE_MS = 10 * 60 * 1000
 
+async function archiveDeliverableAsset(assetId: string) {
   await prisma.asset.update({
-    where: { id: asset.id },
+    where: { id: assetId },
     data: {
       isDeleted: true,
       isCurrent: false,
       status: 'ARCHIVED'
     }
   })
+}
+
+async function isAbandonedPendingDeliverable(asset: {
+  id: string
+  storageKey: string
+  createdAt: Date
+}) {
+  const ageMs = Date.now() - asset.createdAt.getTime()
+
+  if (ageMs < ORPHAN_PENDING_MIN_AGE_MS) {
+    return false
+  }
+
+  if (ageMs >= ORPHAN_PENDING_MAX_AGE_MS) {
+    return true
+  }
+
+  const storage = getStorageService()
+  const head = await storage.headObject(asset.storageKey)
+  return !head.exists || head.contentLength <= 0
+}
+
+async function cleanupAbandonedPendingDeliverables(
+  orderId: string,
+  batch: { reviewRound: number; batchVersion: number },
+  excludeAssetIds: string[] = []
+) {
+  const pendingAssets = await prisma.asset.findMany({
+    where: {
+      orderId,
+      isDeleted: false,
+      status: 'PENDING',
+      reviewRound: batch.reviewRound,
+      version: batch.batchVersion,
+      ...(excludeAssetIds.length ? { id: { notIn: excludeAssetIds } } : {})
+    },
+    select: {
+      id: true,
+      storageKey: true,
+      createdAt: true
+    }
+  })
+
+  for (const pending of pendingAssets) {
+    if (await isAbandonedPendingDeliverable(pending)) {
+      await archiveDeliverableAsset(pending.id)
+    }
+  }
+}
+
+export async function deleteAsset(context: RequestContext, assetId: string) {
+  const asset = await findActiveAsset(assetId)
+  await ensureCanDeleteAsset(context, asset)
+
+  await archiveDeliverableAsset(asset.id)
+
+  if (asset.status === 'READY' || asset.status === 'DELIVERED') {
+    const batch = await getActiveBatchContext(asset.orderId)
+    await cleanupAbandonedPendingDeliverables(asset.orderId, batch)
+  }
 }
 
 export async function listAssetVersions(context: RequestContext, assetId: string) {

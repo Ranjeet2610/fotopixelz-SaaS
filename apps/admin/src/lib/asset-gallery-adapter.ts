@@ -102,6 +102,10 @@ export function countCurrentReadyDeliverables(rows: ApiRecord[], options?: Curre
 }
 
 export function countPendingDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
+  return getPendingDeliverables(rows, options).length;
+}
+
+export function getPendingDeliverables(rows: ApiRecord[], options?: CurrentDeliverableOptions) {
   const version = Number(options?.deliverableVersion ?? 0);
   const reviewRound = Number(options?.reviewRound ?? 0);
   const batchVersion = version > 0 ? version : 1;
@@ -116,7 +120,23 @@ export function countPendingDeliverables(rows: ApiRecord[], options?: CurrentDel
     const matchesRound = reviewRound <= 0 || Number(row.reviewRound ?? 1) === reviewRound;
     const matchesVersion = Number(row.version ?? 0) === batchVersion;
     return matchesRound && matchesVersion;
-  }).length;
+  });
+}
+
+export function formatDeliverableQuotaError(input: {
+  sourceImageCount: number;
+  uploadedCount: number;
+  pendingCount: number;
+  attemptedUpload: number;
+}) {
+  return [
+    "Maximum deliverables reached.",
+    `Source images: ${input.sourceImageCount}`,
+    `Existing deliverables: ${input.uploadedCount}`,
+    ...(input.pendingCount > 0 ? [`Pending uploads: ${input.pendingCount}`] : []),
+    `Attempted upload: ${input.attemptedUpload}`,
+    `Maximum allowed: ${input.sourceImageCount}`,
+  ].join("\n");
 }
 
 export type DeliverableQuotaSummary = {

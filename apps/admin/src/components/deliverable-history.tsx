@@ -101,6 +101,7 @@ export function DeliverableHistory({
         orderId,
         file,
         replacesAssetId: assetId,
+        onPresignedCreated: onChanged,
       });
       onChanged?.();
     } catch (caught) {

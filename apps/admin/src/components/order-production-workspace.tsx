@@ -9,6 +9,7 @@ import {
   computeDeliverableQuota,
   countCurrentReadyDeliverables,
   getNextUploadVersion,
+  getPendingDeliverables,
 } from "@/lib/asset-gallery-adapter";
 import type { ApiRecord } from "@/lib/types";
 import { DeliverableUploadPanel } from "./deliverable-upload-panel";
@@ -78,6 +79,10 @@ export function OrderProductionWorkspace({
         reviewRound,
       }),
     [assets, deliverableVersion, reviewRound, uploadedSources.length],
+  );
+  const pendingDeliverables = useMemo(
+    () => getPendingDeliverables(assets, { deliverableVersion, reviewRound }),
+    [assets, deliverableVersion, reviewRound],
   );
 
   const fetchUploadPreview = useCallback(
@@ -162,7 +167,9 @@ export function OrderProductionWorkspace({
             uploadedCount={deliverableQuota.uploadedCount}
             pendingCount={deliverableQuota.pendingCount}
             remainingAllowed={deliverableQuota.remainingAllowed}
+            pendingAssets={pendingDeliverables}
             onUploaded={onAssetsReload}
+            onAssetsChanged={onAssetsReload}
           />
         </Card>
       ) : null}

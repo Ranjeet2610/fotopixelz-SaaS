@@ -56,33 +56,50 @@ export async function uploadDeliverableFile(input: {
   file: File;
   replacesAssetId?: string;
   onProgress?: (progress: number) => void;
+  onPresignedCreated?: () => void;
   signal?: AbortSignal;
 }) {
-  const presigned = await createDeliverablePresignedUrl({
-    organizationId: input.organizationId,
-    orderId: input.orderId,
-    file: input.file,
-    replacesAssetId: input.replacesAssetId,
-  });
+  let createdAssetId: string | undefined;
 
-  await putFileWithProgress(
-    presigned.presigned.uploadUrl,
-    input.file,
-    presigned.presigned.headers,
-    input.onProgress,
-    input.signal,
-  );
+  try {
+    const presigned = await createDeliverablePresignedUrl({
+      organizationId: input.organizationId,
+      orderId: input.orderId,
+      file: input.file,
+      replacesAssetId: input.replacesAssetId,
+    });
 
-  const asset = await completeDeliverableUpload({
-    assetId: presigned.asset.id,
-    storageKey: presigned.presigned.storageKey,
-    storageUrl: presigned.presigned.storageUrl,
-  });
+    createdAssetId = presigned.asset.id;
+    input.onPresignedCreated?.();
 
-  return {
-    ...asset,
-    fileSize: input.file.size,
-  };
+    await putFileWithProgress(
+      presigned.presigned.uploadUrl,
+      input.file,
+      presigned.presigned.headers,
+      input.onProgress,
+      input.signal,
+    );
+
+    const asset = await completeDeliverableUpload({
+      assetId: presigned.asset.id,
+      storageKey: presigned.presigned.storageKey,
+      storageUrl: presigned.presigned.storageUrl,
+    });
+
+    return {
+      ...asset,
+      fileSize: input.file.size,
+    };
+  } catch (error) {
+    if (createdAssetId) {
+      try {
+        await deleteDeliverable(createdAssetId);
+      } catch {
+        // Best-effort cleanup of the PENDING row created for this attempt.
+      }
+    }
+    throw error;
+  }
 }
 
 export async function getAssetPreviewUrl(assetId: string) {
