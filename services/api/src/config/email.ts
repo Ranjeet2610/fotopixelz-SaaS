@@ -32,3 +32,26 @@ export function buildPasswordResetUrl(app: 'web' | 'admin', rawToken: string) {
 export function buildLoginVerifiedRedirectUrl(verified: boolean) {
   return `${env.webAppUrl}/login?verified=${verified ? 'true' : 'false'}`
 }
+
+/**
+ * One-time startup check so missing email configuration is visible in
+ * server logs at boot, instead of only being discoverable the first time
+ * a welcome/verification/reset email silently fails to send.
+ */
+export function warnIfEmailNotConfigured() {
+  const missing: string[] = []
+
+  if (!env.resendApiKey) {
+    missing.push('RESEND_API_KEY')
+  }
+
+  if (!env.emailFrom) {
+    missing.push('EMAIL_FROM')
+  }
+
+  if (missing.length > 0) {
+    console.warn(
+      `[email] Missing configuration: ${missing.join(', ')}. Outgoing emails (welcome, verification, password reset, password changed) will not be sent until this is set.`
+    )
+  }
+}

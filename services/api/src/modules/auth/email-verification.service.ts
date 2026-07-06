@@ -65,18 +65,15 @@ export async function sendRegistrationEmails(user: {
   }
 }
 
-export async function resendVerificationEmail(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      emailVerifiedAt: true
-    }
-  })
+type ResendableUser = {
+  id: string
+  email: string
+  name: string | null
+  emailVerifiedAt: Date | null
+}
 
-  if (!user || user.emailVerifiedAt) {
+async function resendVerificationForUser(user: ResendableUser) {
+  if (user.emailVerifiedAt) {
     return
   }
 
@@ -98,6 +95,50 @@ export async function resendVerificationEmail(userId: string) {
       message
     })
   }
+}
+
+export async function resendVerificationEmail(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      emailVerifiedAt: true
+    }
+  })
+
+  if (!user) {
+    return
+  }
+
+  await resendVerificationForUser(user)
+}
+
+// Unauthenticated lookup path (see resendVerificationByEmailHandler for why
+// this exists). Deliberately silent on "not found" / "already verified" to
+// avoid revealing account existence, matching forgotPassword's behavior.
+export async function resendVerificationEmailByAddress(email: string) {
+  const user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: email.trim().toLowerCase(),
+        mode: 'insensitive'
+      }
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      emailVerifiedAt: true
+    }
+  })
+
+  if (!user) {
+    return
+  }
+
+  await resendVerificationForUser(user)
 }
 
 export async function verifyEmailByToken(rawToken: string): Promise<boolean> {

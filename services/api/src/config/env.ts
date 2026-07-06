@@ -22,6 +22,9 @@ export const env = {
   emailFrom: process.env.EMAIL_FROM ?? '',
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? '',
   emailLogoUrl: process.env.EMAIL_LOGO_URL ?? '',
+  // Kill-switch for login-time email verification enforcement. Defaults to
+  // enabled; set to the string "false" to disable without a code revert.
+  enforceEmailVerification: process.env.ENFORCE_EMAIL_VERIFICATION !== 'false',
   storageProvider: process.env.STORAGE_PROVIDER ?? '',
   storageUploadExpirySeconds: Number(process.env.STORAGE_UPLOAD_EXPIRY_SECONDS ?? 900),
   storageDownloadExpirySeconds: Number(process.env.STORAGE_DOWNLOAD_EXPIRY_SECONDS ?? 300)

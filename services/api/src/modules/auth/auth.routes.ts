@@ -10,6 +10,7 @@ import {
   logoutHandler,
   meHandler,
   registerHandler,
+  resendVerificationByEmailHandler,
   resendVerificationHandler,
   resetPasswordHandler,
   verifyEmailHandler
@@ -26,6 +27,7 @@ authRouter.post('/login', authMutationRateLimiter, loginHandler)
 authRouter.post('/forgot-password', authMutationRateLimiter, forgotPasswordHandler)
 authRouter.post('/reset-password', authMutationRateLimiter, resetPasswordHandler)
 authRouter.post('/resend-verification', authMutationRateLimiter, requireAuth, resendVerificationHandler)
+authRouter.post('/resend-verification-email', authMutationRateLimiter, resendVerificationByEmailHandler)
 authRouter.get('/me', requireAuth, meHandler)
 authRouter.post('/logout', requireAuth, logoutHandler)
 

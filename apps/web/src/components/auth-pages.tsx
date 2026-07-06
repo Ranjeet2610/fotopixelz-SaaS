@@ -96,7 +96,11 @@ export function LoginPage() {
       }
       router.replace(routeAfterAuth(currentUser.role, searchParams.get("next")));
     } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 403) {
+      if (
+        caught instanceof ApiError &&
+        caught.status === 403 &&
+        caught.message === "Account is inactive"
+      ) {
         setError("Your account is inactive. Contact support for help.");
       } else {
         setError(caught instanceof Error ? caught.message : "Sign in failed");

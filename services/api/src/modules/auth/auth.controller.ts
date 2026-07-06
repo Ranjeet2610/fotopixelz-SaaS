@@ -4,13 +4,25 @@ import {
   googleOAuthQuerySchema,
   loginSchema,
   registerSchema,
+  resendVerificationEmailSchema,
   resetPasswordSchema,
   verifyEmailQuerySchema
 } from './auth.validator'
 import { forgotPassword, getCurrentUser, login, register, resetPassword } from './auth.service'
 import { buildGoogleAuthorizationUrl, handleGoogleOAuthCallback } from './google-oauth.service'
-import { resendVerificationEmail, verifyEmailByToken } from './email-verification.service'
+import {
+  resendVerificationEmail,
+  resendVerificationEmailByAddress,
+  verifyEmailByToken
+} from './email-verification.service'
 import { buildLoginVerifiedRedirectUrl } from '../../config/email'
+
+// Messages that represent "credentials are valid but access is currently
+// forbidden by an account-state policy" — distinct from bad credentials (401).
+const LOGIN_FORBIDDEN_MESSAGES = new Set([
+  "Account is inactive",
+  "Please verify your email before signing in"
+])
 
 export function getAuthHealth(_req: Request, res: Response) {
   res.status(200).json({ module: "auth", status: "ok" })
@@ -43,7 +55,7 @@ export async function loginHandler(req: Request, res: Response) {
     return res.status(200).json({ success: true, data: result })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Login failed"
-    const status = message === "Account is inactive" ? 403 : 401
+    const status = LOGIN_FORBIDDEN_MESSAGES.has(message) ? 403 : 401
     return res.status(status).json({ success: false, message })
   }
 }
@@ -148,6 +160,24 @@ export async function resendVerificationHandler(req: Request, res: Response) {
   return res.status(200).json({
     success: true,
     message: 'If your email is unverified, a new verification link has been sent.'
+  })
+}
+
+// Unauthenticated companion to resendVerificationHandler: required because a
+// user who cannot pass email verification can no longer obtain a session
+// token to call the authenticated endpoint above once login enforces
+// verification. Mirrors forgotPasswordHandler's non-enumerating response.
+export async function resendVerificationByEmailHandler(req: Request, res: Response) {
+  const parsed = resendVerificationEmailSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  await resendVerificationEmailByAddress(parsed.data.email)
+
+  return res.status(200).json({
+    success: true,
+    message: 'If this email exists and is unverified, a new verification link has been sent.'
   })
 }
 

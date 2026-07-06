@@ -141,6 +141,10 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
     throw new Error("Account is inactive")
   }
 
+  if (env.enforceEmailVerification && !user.emailVerifiedAt) {
+    throw new Error("Please verify your email before signing in")
+  }
+
   const authUser = toAuthUser(user)
   const token = issueAccessToken(authUser)
   return { token, user: authUser }

@@ -1,15 +1,16 @@
 import { Resend } from 'resend'
 
-let client: Resend | null | undefined
+let client: Resend | null = null
 
 export function getResendClient(apiKey = process.env.RESEND_API_KEY) {
-  if (client !== undefined) {
+  if (client) {
     return client
   }
 
   if (!apiKey) {
-    client = null
-    return client
+    // Do not cache the failure: configuration may become available later
+    // in the process lifetime (e.g. secrets injected shortly after boot).
+    return null
   }
 
   client = new Resend(apiKey)
@@ -17,5 +18,5 @@ export function getResendClient(apiKey = process.env.RESEND_API_KEY) {
 }
 
 export function resetResendClientForTests() {
-  client = undefined
+  client = null
 }

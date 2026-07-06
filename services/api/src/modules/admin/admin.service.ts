@@ -96,7 +96,13 @@ export async function createStaffUser(
         email: input.email,
         password,
         role: input.role,
-        isActive: true
+        isActive: true,
+        // Staff accounts are provisioned by a trusted admin, not
+        // self-registered — there is no separate email-ownership proof step
+        // for this flow, so mark verified at creation rather than leaving
+        // emailVerifiedAt null (which would permanently block login once
+        // email verification is enforced).
+        emailVerifiedAt: new Date()
       },
       select: adminUserSelect
     })

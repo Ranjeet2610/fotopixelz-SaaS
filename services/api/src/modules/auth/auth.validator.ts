@@ -23,6 +23,10 @@ export const verifyEmailQuerySchema = z.object({
   token: z.string().min(1)
 })
 
+export const resendVerificationEmailSchema = z.object({
+  email: z.string().email()
+})
+
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8).max(128)
