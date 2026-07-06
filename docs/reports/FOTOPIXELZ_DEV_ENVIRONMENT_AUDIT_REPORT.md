@@ -179,7 +179,7 @@ All four packages start **simultaneously**:
 | No port flags in local dev scripts | Primary instability |
 | `pnpm dev` starts workers unnecessarily | Harmless today (no Redis connection) |
 | No root script for Docker infra only | Docs say `docker compose up -d` manually |
-| `docs/local-setup.md` says `pnpm dev` | Perpetuates port race |
+| `docs/guides/local-setup.md` says `pnpm dev` | Perpetuates port race |
 
 ---
 
@@ -357,7 +357,7 @@ Web does **not** set `turbopack.root` — less exposure to panics.
 
 1. Update `apps/web/package.json` dev script: `next dev -p 3000`
 2. Update `apps/admin/package.json` dev script: `next dev -p 3001`
-3. Update `docs/local-setup.md` and `apps/admin/README.md` with correct ports
+3. Update `docs/guides/local-setup.md` and `apps/admin/README.md` with correct ports
 4. Add `NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api/v1` to `.env.example`
 
 ### Phase B — Environment hygiene
