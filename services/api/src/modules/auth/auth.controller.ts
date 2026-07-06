@@ -1,6 +1,16 @@
 import type { Request, Response } from 'express'
-import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from './auth.validator'
+import {
+  forgotPasswordSchema,
+  googleOAuthQuerySchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  verifyEmailQuerySchema
+} from './auth.validator'
 import { forgotPassword, getCurrentUser, login, register, resetPassword } from './auth.service'
+import { buildGoogleAuthorizationUrl, handleGoogleOAuthCallback } from './google-oauth.service'
+import { resendVerificationEmail, verifyEmailByToken } from './email-verification.service'
+import { buildLoginVerifiedRedirectUrl } from '../../config/email'
 
 export function getAuthHealth(_req: Request, res: Response) {
   res.status(200).json({ module: "auth", status: "ok" })
@@ -89,5 +99,55 @@ export async function resetPasswordHandler(req: Request, res: Response) {
     const status = message === "Invalid or expired reset token" ? 400 : 500
     return res.status(status).json({ success: false, message })
   }
+}
+
+export function googleAuthStartHandler(req: Request, res: Response) {
+  const parsed = googleOAuthQuerySchema.safeParse(req.query)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const authorizationUrl = buildGoogleAuthorizationUrl(parsed.data.next)
+    return res.redirect(authorizationUrl)
+  } catch {
+    return res.status(503).json({
+      success: false,
+      message: "Google sign-in is temporarily unavailable"
+    })
+  }
+}
+
+export async function googleAuthCallbackHandler(req: Request, res: Response) {
+  const { code, state } = req.query
+  const result = await handleGoogleOAuthCallback(
+    typeof code === 'string' ? code : undefined,
+    typeof state === 'string' ? state : undefined
+  )
+
+  return res.redirect(result.redirectUrl)
+}
+
+export async function verifyEmailHandler(req: Request, res: Response) {
+  const parsed = verifyEmailQuerySchema.safeParse(req.query)
+  if (!parsed.success) {
+    return res.redirect(buildLoginVerifiedRedirectUrl(false))
+  }
+
+  const verified = await verifyEmailByToken(parsed.data.token)
+  return res.redirect(buildLoginVerifiedRedirectUrl(verified))
+}
+
+export async function resendVerificationHandler(req: Request, res: Response) {
+  if (!req.userId) {
+    return res.status(401).json({ success: false, message: 'Unauthorized' })
+  }
+
+  await resendVerificationEmail(req.userId)
+
+  return res.status(200).json({
+    success: true,
+    message: 'If your email is unverified, a new verification link has been sent.'
+  })
 }
 

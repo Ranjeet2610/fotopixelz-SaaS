@@ -1,15 +1,15 @@
 import bcrypt from "bcryptjs"
 import crypto from "node:crypto"
 import { signAccessToken, type AccessTokenExpiresIn } from "@repo/auth"
+import { sendForgotPasswordEmail, sendPasswordChangedEmail, logEmailEvent } from "@repo/email"
 import { env } from "../../config/env"
+import { buildPasswordResetUrl, getAuthEmailContext } from "../../config/email"
 import { prisma } from "../../database/prisma"
 import {
-  buildClientDemoTrialEndsAt,
-  CLIENT_DEMO_FREE_IMAGE_CREDITS,
-  createUniqueOrganizationSlug,
-  deriveOrganizationName,
-  deriveOrganizationSlugBase
-} from "./client-workspace"
+  createClientUserWithWorkspace,
+  clientOrganizationSelect
+} from "./client-workspace-bootstrap"
+import { sendRegistrationEmails } from "./email-verification.service"
 import type {
   AuthOrganizationDTO,
   AuthResponse,
@@ -20,23 +20,21 @@ import type {
   ResetPasswordInput
 } from "./auth.types"
 
-const organizationSelect = {
-  id: true,
-  name: true,
-  slug: true,
-  plan: true,
-  subscriptionStatus: true,
-  trialEndsAt: true,
-  freeImageCredits: true,
-  usedImageCredits: true
-} as const
+const organizationSelect = clientOrganizationSelect
 
-function toAuthUser(user: { id: string; name: string | null; email: string; role: AuthUserDTO["role"] }): AuthUserDTO {
+function toAuthUser(user: {
+  id: string
+  name: string | null
+  email: string
+  role: AuthUserDTO["role"]
+  emailVerifiedAt?: Date | null
+}): AuthUserDTO {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role
+    role: user.role,
+    emailVerifiedAt: user.emailVerifiedAt ?? null
   }
 }
 
@@ -84,47 +82,31 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
   }
 
   const password = await bcrypt.hash(input.password, 10)
-  const organizationName = deriveOrganizationName(input)
-  const slugBase = deriveOrganizationSlugBase(input)
-  const trialEndsAt = buildClientDemoTrialEndsAt()
 
   const { user, organization } = await prisma.$transaction(async (tx) => {
-    const createdUser = await tx.user.create({
-      data: {
+    return createClientUserWithWorkspace(
+      tx,
+      {
         name: input.name,
-        email: input.email,
-        password,
-        role: "CLIENT"
-      }
-    })
-
-    const slug = await createUniqueOrganizationSlug(tx, slugBase)
-    const createdOrganization = await tx.organization.create({
-      data: {
-        name: organizationName,
-        slug,
-        plan: "DEMO",
-        subscriptionStatus: "TRIAL",
-        trialEndsAt,
-        freeImageCredits: CLIENT_DEMO_FREE_IMAGE_CREDITS,
-        usedImageCredits: 0
+        email: input.email.trim().toLowerCase(),
+        password
       },
-      select: organizationSelect
-    })
-
-    await tx.membership.create({
-      data: {
-        organizationId: createdOrganization.id,
-        userId: createdUser.id,
-        role: "OWNER"
+      {
+        name: input.name,
+        email: input.email.trim().toLowerCase(),
+        organizationName: input.organizationName
       }
-    })
-
-    return { user: createdUser, organization: createdOrganization }
+    )
   })
 
   const authUser = toAuthUser(user)
   const token = issueAccessToken(authUser)
+
+  void sendRegistrationEmails({
+    id: user.id,
+    email: user.email,
+    name: user.name
+  })
 
   return {
     token,
@@ -134,8 +116,19 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
 }
 
 export async function login(input: LoginInput): Promise<AuthResponse> {
-  const user = await prisma.user.findUnique({ where: { email: input.email } })
+  const user = await prisma.user.findFirst({
+    where: {
+      email: {
+        equals: input.email.trim().toLowerCase(),
+        mode: 'insensitive'
+      }
+    }
+  })
   if (!user) {
+    throw new Error("Invalid credentials")
+  }
+
+  if (!user.password) {
     throw new Error("Invalid credentials")
   }
 
@@ -160,7 +153,8 @@ export async function getCurrentUser(userId: string): Promise<AuthUserDTO | null
       id: true,
       name: true,
       email: true,
-      role: true
+      role: true,
+      emailVerifiedAt: true
     }
   })
 
@@ -170,7 +164,7 @@ export async function getCurrentUser(userId: string): Promise<AuthUserDTO | null
 export async function forgotPassword(input: ForgotPasswordInput): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
-    select: { id: true, email: true }
+    select: { id: true, email: true, name: true }
   })
 
   if (!user) {
@@ -189,8 +183,23 @@ export async function forgotPassword(input: ForgotPasswordInput): Promise<void> 
     }
   })
 
-  const resetLink = `${env.appBaseUrl}/reset-password?token=${rawToken}`
-  console.log(`Password reset requested for ${user.email}. Reset link: ${resetLink}`)
+  const app = input.app ?? 'web'
+  const resetUrl = buildPasswordResetUrl(app, rawToken)
+  const ctx = getAuthEmailContext()
+
+  try {
+    await sendForgotPasswordEmail(ctx, {
+      to: user.email,
+      recipientName: user.name,
+      resetUrl
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown_error'
+    logEmailEvent('error', 'Forgot password email failed', {
+      userId: user.id,
+      message
+    })
+  }
 }
 
 export async function resetPassword(input: ResetPasswordInput): Promise<void> {
@@ -204,7 +213,9 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
       }
     },
     select: {
-      id: true
+      id: true,
+      email: true,
+      name: true
     }
   })
 
@@ -222,4 +233,19 @@ export async function resetPassword(input: ResetPasswordInput): Promise<void> {
       passwordResetExpiresAt: null
     }
   })
+
+  const ctx = getAuthEmailContext()
+
+  try {
+    await sendPasswordChangedEmail(ctx, {
+      to: user.email,
+      recipientName: user.name
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown_error'
+    logEmailEvent('error', 'Password changed email failed', {
+      userId: user.id,
+      message
+    })
+  }
 }

@@ -33,6 +33,7 @@ type AuthContextValue = {
     password: string;
     organizationName?: string;
   }) => Promise<SessionUser>;
+  completeOAuthSession: (token: string) => Promise<SessionUser>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<SessionUser | null>;
 };
@@ -183,6 +184,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [establishSession],
   );
 
+  const completeOAuthSession = useCallback(
+    async (issuedToken: string) => {
+      return establishSession({ token: issuedToken });
+    },
+    [establishSession],
+  );
+
   const logout = useCallback(async () => {
     const activeToken = token ?? getStoredToken();
     try {
@@ -199,8 +207,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const value = useMemo(
-    () => ({ user, token, loading, login, register, logout, refreshUser }),
-    [user, token, loading, login, register, logout, refreshUser],
+    () => ({
+      user,
+      token,
+      loading,
+      login,
+      register,
+      completeOAuthSession,
+      logout,
+      refreshUser,
+    }),
+    [user, token, loading, login, register, completeOAuthSession, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -12,11 +12,14 @@
     "rootDir": "../..",
     "outDir": "dist",
     "types": ["node"],
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@repo/auth": ["../../packages/auth/auth.ts"],
       "@repo/auth/*": ["../../packages/auth/*"],
-      "@repo/database": ["../../packages/database/src/client.ts"]
+      "@repo/database": ["../../packages/database/src/client.ts"],
+      "@repo/email": ["../../packages/email/src/index.ts"],
+      "@repo/email/*": ["../../packages/email/src/*"]
     }
   },
   "include": ["src/**/*.ts", "types/**/*.d.ts"],

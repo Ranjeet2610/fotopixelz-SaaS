@@ -15,10 +15,19 @@ export const loginSchema = z.object({
 })
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email()
+  email: z.string().email(),
+  app: z.enum(['web', 'admin']).optional()
+})
+
+export const verifyEmailQuerySchema = z.object({
+  token: z.string().min(1)
 })
 
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: z.string().min(8).max(128)
+})
+
+export const googleOAuthQuerySchema = z.object({
+  next: z.string().optional()
 })

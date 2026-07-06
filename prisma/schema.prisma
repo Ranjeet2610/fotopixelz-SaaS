@@ -166,7 +166,11 @@ model User {
   id             String         @id @default(cuid())
   name           String?
   email          String         @unique
-  password       String
+  password       String?
+  googleId       String?        @unique
+  emailVerifiedAt DateTime?
+  emailVerificationToken String?
+  emailVerificationExpiresAt DateTime?
   passwordResetToken String?
   passwordResetExpiresAt DateTime?
   role           UserRole       @default(CLIENT)
@@ -190,6 +194,7 @@ model User {
 
   @@index([role])
   @@index([passwordResetToken])
+  @@index([emailVerificationToken])
 }
 
 model UserBillingProfile {

@@ -14,6 +14,7 @@ export interface LoginInput {
 
 export interface ForgotPasswordInput {
   email: string
+  app?: 'web' | 'admin'
 }
 
 export interface ResetPasswordInput {
@@ -21,11 +22,12 @@ export interface ResetPasswordInput {
   password: string
 }
 
-export interface AuthUserDTO {
+export type AuthUserDTO = {
   id: string
   name: string | null
   email: string
   role: AuthRole
+  emailVerifiedAt?: Date | null
 }
 
 export interface AuthOrganizationDTO {
