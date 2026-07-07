@@ -14,7 +14,7 @@ RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc turbo.json ./
-COPY apps/web/package.json ./apps/web/
+COPY apps/client/package.json ./apps/client/
 COPY apps/admin/package.json ./apps/admin/
 COPY apps/workers/package.json ./apps/workers/
 COPY services/api/package.json ./services/api/
@@ -24,12 +24,12 @@ COPY packages/validators/package.json ./packages/validators/
 COPY packages/upload-gallery/package.json ./packages/upload-gallery/
 
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm fetch --filter "web..." && \
-    pnpm install --frozen-lockfile --offline --filter "web..."
+    pnpm fetch --filter "client..." && \
+    pnpm install --frozen-lockfile --offline --filter "client..."
 
-COPY apps/web ./apps/web
+COPY apps/client ./apps/client
 COPY packages/upload-gallery ./packages/upload-gallery
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "web", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["pnpm", "--filter", "client", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]

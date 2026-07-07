@@ -1,11 +1,12 @@
 import http from 'node:http'
-import 'dotenv/config'
+
 import app from './app'
 import { env } from './config/env'
 import { warnIfEmailNotConfigured } from './config/email'
 import { initSocketServer } from './sockets/socket'
 
 const PORT = env.port
+
 const server = http.createServer(app)
 
 warnIfEmailNotConfigured()

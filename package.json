@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
-    "dev:web": "pnpm --filter web run dev",
+    "dev:client": "pnpm --filter client run dev",
     "dev:admin": "pnpm --filter admin run dev",
     "dev:api": "pnpm --filter api run dev",
     "dev:workers": "pnpm --filter workers run dev",

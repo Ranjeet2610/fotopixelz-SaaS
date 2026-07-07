@@ -69,6 +69,11 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(
     searchParams.get("staff") === "blocked" ? STAFF_BLOCKED_MESSAGE : null,
   );
+  const [notice] = useState<string | null>(
+    searchParams.get("registered") === "true"
+      ? "Account created successfully. Check your email to verify your account, then sign in."
+      : null,
+  );
 
   useEffect(() => {
     if (!loading && user && isClientRole(user.role)) {
@@ -116,7 +121,11 @@ export function LoginPage() {
       description="Sign in to your client workspace to manage orders and deliverables."
     >
       <div className="space-y-6">
-        {error ? <AuthAlert message={error} /> : null}
+        {error ? (
+          <AuthAlert message={error} />
+        ) : notice ? (
+          <AuthAlert message={notice} variant="success" />
+        ) : null}
 
         <GoogleAuthButton
           onClick={handleGoogleSignIn}
@@ -213,13 +222,16 @@ export function RegisterPage() {
     }
 
     try {
-      const currentUser = await register({
+      await register({
         name: name.trim() || undefined,
         organizationName: organizationName.trim() || undefined,
         email,
         password,
       });
-      router.replace(routeAfterAuth(currentUser.role, searchParams.get("next")));
+      // Registration never creates a session (see AuthProvider#register), so
+      // route to the login page for the user to sign in once verified.
+      const next = searchParams.get("next");
+      router.replace(`/login?registered=true${next ? `&next=${encodeURIComponent(next)}` : ""}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Registration failed");
     } finally {

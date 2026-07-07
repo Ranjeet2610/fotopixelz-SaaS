@@ -9,6 +9,7 @@ import {
   loginHandler,
   logoutHandler,
   meHandler,
+  oauthExchangeHandler,
   registerHandler,
   resendVerificationByEmailHandler,
   resendVerificationHandler,
@@ -21,6 +22,7 @@ const authRouter = Router()
 authRouter.get('/health', getAuthHealth)
 authRouter.get('/google', googleOAuthRateLimiter, googleAuthStartHandler)
 authRouter.get('/google/callback', googleOAuthRateLimiter, googleAuthCallbackHandler)
+authRouter.post('/oauth/exchange', authMutationRateLimiter, oauthExchangeHandler)
 authRouter.get('/verify-email', authMutationRateLimiter, verifyEmailHandler)
 authRouter.post('/register', authMutationRateLimiter, registerHandler)
 authRouter.post('/login', authMutationRateLimiter, loginHandler)

@@ -32,8 +32,8 @@ type AuthContextValue = {
     email: string;
     password: string;
     organizationName?: string;
-  }) => Promise<SessionUser>;
-  completeOAuthSession: (token: string) => Promise<SessionUser>;
+  }) => Promise<RegisterResult>;
+  completeOAuthSession: (code: string) => Promise<SessionUser>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<SessionUser | null>;
 };
@@ -43,6 +43,13 @@ type AuthResponse = {
   accessToken?: string;
   user?: SessionUser;
   organization?: WorkspaceOrganization;
+};
+
+// Registration deliberately never authenticates: the account is created
+// unverified, so the API returns a plain success message instead of a
+// session (see services/api auth.service#register).
+type RegisterResult = {
+  message: string;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -175,18 +182,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string;
       organizationName?: string;
     }) => {
-      const result = await apiRequest<AuthResponse>("/auth/register", {
+      // Intentionally does not call establishSession(): registration never
+      // creates an authenticated session. The user must verify their email
+      // and sign in explicitly via login().
+      const result = await apiRequest<RegisterResult>("/auth/register", {
         method: "POST",
         body: input,
       });
-      return establishSession(result);
+      return result;
     },
-    [establishSession],
+    [],
   );
 
   const completeOAuthSession = useCallback(
-    async (issuedToken: string) => {
-      return establishSession({ token: issuedToken });
+    async (code: string) => {
+      // The OAuth callback redirect carries a short-lived, single-use code
+      // instead of the real token, so it never appears in browser history,
+      // server access logs, or Referer headers. Exchange it here for the
+      // actual session, same shape as login()/register().
+      const result = await apiRequest<AuthResponse>("/auth/oauth/exchange", {
+        method: "POST",
+        body: { code },
+      });
+      return establishSession(result);
     },
     [establishSession],
   );

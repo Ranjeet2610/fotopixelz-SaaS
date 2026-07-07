@@ -11,12 +11,12 @@ import {
 } from "./client-workspace-bootstrap"
 import { sendRegistrationEmails } from "./email-verification.service"
 import type {
-  AuthOrganizationDTO,
   AuthResponse,
   AuthUserDTO,
   ForgotPasswordInput,
   LoginInput,
   RegisterInput,
+  RegisterResponse,
   ResetPasswordInput
 } from "./auth.types"
 
@@ -38,28 +38,6 @@ function toAuthUser(user: {
   }
 }
 
-function toAuthOrganization(organization: {
-  id: string
-  name: string
-  slug: string
-  plan: AuthOrganizationDTO["plan"]
-  subscriptionStatus: AuthOrganizationDTO["subscriptionStatus"]
-  trialEndsAt: Date | null
-  freeImageCredits: number
-  usedImageCredits: number
-}): AuthOrganizationDTO {
-  return {
-    id: organization.id,
-    name: organization.name,
-    slug: organization.slug,
-    plan: organization.plan,
-    subscriptionStatus: organization.subscriptionStatus,
-    trialEndsAt: organization.trialEndsAt,
-    freeImageCredits: organization.freeImageCredits,
-    usedImageCredits: organization.usedImageCredits
-  }
-}
-
 function issueAccessToken(user: AuthUserDTO): string {
   if (!env.jwtAccessSecret) {
     throw new Error("JWT_ACCESS_SECRET is missing")
@@ -75,7 +53,7 @@ function hashResetToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex")
 }
 
-export async function register(input: RegisterInput): Promise<AuthResponse> {
+export async function register(input: RegisterInput): Promise<RegisterResponse> {
   const existing = await prisma.user.findUnique({ where: { email: input.email } })
   if (existing) {
     throw new Error("Email already registered")
@@ -83,7 +61,7 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
 
   const password = await bcrypt.hash(input.password, 10)
 
-  const { user, organization } = await prisma.$transaction(async (tx) => {
+  const { user } = await prisma.$transaction(async (tx) => {
     return createClientUserWithWorkspace(
       tx,
       {
@@ -99,19 +77,17 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
     )
   })
 
-  const authUser = toAuthUser(user)
-  const token = issueAccessToken(authUser)
-
   void sendRegistrationEmails({
     id: user.id,
     email: user.email,
     name: user.name
   })
 
+  // Deliberately no token/session is issued here: the account is created
+  // unverified and must not be authenticated until email verification
+  // completes (see login()'s enforceEmailVerification gate).
   return {
-    token,
-    user: authUser,
-    organization: toAuthOrganization(organization)
+    message: "Account created successfully. Please verify your email before signing in."
   }
 }
 

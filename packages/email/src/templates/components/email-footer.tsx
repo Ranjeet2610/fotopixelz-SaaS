@@ -1,3 +1,4 @@
+import React from 'react'
 import { Link, Section, Text } from '@react-email/components'
 import type { EmailBrandConfig } from '../../types'
 

@@ -9,7 +9,8 @@
 6. Payment capture, notifications, and analytics rollups.
 
 ## Monorepo Responsibilities
-- `apps/web`: marketing + client dashboard routes.
+- `apps/client`: authenticated client application — login, register, OAuth, dashboard, orders, uploads, assets, billing. Formerly `apps/web`, renamed as part of the public-site/client-app workspace split (target domain: `app.fotopixelz.com`).
+- `apps/web`: placeholder scaffold for the future public marketing site (target domain: `fotopixelz.com`). Intentionally minimal — no auth, no dashboard, not yet wired into Docker Compose or deployment. Build it out only when public site development begins.
 - `apps/admin`: admin operations routes.
 - `apps/workers`: async jobs/processors/queue placeholders.
 - `services/api`: module-based HTTP API and workflow orchestration.

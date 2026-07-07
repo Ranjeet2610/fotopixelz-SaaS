@@ -1,3 +1,4 @@
+import React from 'react'
 import { sendEmail, type EmailTransportConfig } from '../send-email'
 import {
   ForgotPasswordEmail,

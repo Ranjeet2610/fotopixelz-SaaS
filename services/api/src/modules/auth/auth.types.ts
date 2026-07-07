@@ -46,3 +46,10 @@ export interface AuthResponse {
   user: AuthUserDTO
   organization?: AuthOrganizationDTO
 }
+
+// Registration intentionally never returns a token/user/organization: the
+// account is created in an unverified state and must not be authenticated
+// until the user completes email verification (see auth.service#register).
+export interface RegisterResponse {
+  message: string
+}

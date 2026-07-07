@@ -14,7 +14,7 @@ RUN corepack enable && corepack prepare pnpm@11.4.0 --activate
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc prisma.config.ts turbo.json ./
-COPY apps/web/package.json ./apps/web/
+COPY apps/client/package.json ./apps/client/
 COPY apps/admin/package.json ./apps/admin/
 COPY apps/workers/package.json ./apps/workers/
 COPY services/api/package.json ./services/api/

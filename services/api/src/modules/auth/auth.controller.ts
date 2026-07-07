@@ -3,13 +3,18 @@ import {
   forgotPasswordSchema,
   googleOAuthQuerySchema,
   loginSchema,
+  oauthExchangeSchema,
   registerSchema,
   resendVerificationEmailSchema,
   resetPasswordSchema,
   verifyEmailQuerySchema
 } from './auth.validator'
 import { forgotPassword, getCurrentUser, login, register, resetPassword } from './auth.service'
-import { buildGoogleAuthorizationUrl, handleGoogleOAuthCallback } from './google-oauth.service'
+import {
+  buildGoogleAuthorizationUrl,
+  exchangeOAuthHandoffCode,
+  handleGoogleOAuthCallback
+} from './google-oauth.service'
 import {
   resendVerificationEmail,
   resendVerificationEmailByAddress,
@@ -36,7 +41,7 @@ export async function registerHandler(req: Request, res: Response) {
 
   try {
     const result = await register(parsed.data)
-    return res.status(201).json({ success: true, data: result })
+    return res.status(201).json({ success: true, message: result.message })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Registration failed"
     const status = message === "Email already registered" ? 409 : 400
@@ -138,6 +143,22 @@ export async function googleAuthCallbackHandler(req: Request, res: Response) {
   )
 
   return res.redirect(result.redirectUrl)
+}
+
+export async function oauthExchangeHandler(req: Request, res: Response) {
+  const parsed = oauthExchangeSchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({ success: false, errors: parsed.error.flatten() })
+  }
+
+  try {
+    const result = await exchangeOAuthHandoffCode(parsed.data.code)
+    return res.status(200).json({ success: true, data: result })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Exchange failed'
+    const status = message === 'Invalid or expired code' ? 400 : 500
+    return res.status(status).json({ success: false, message })
+  }
 }
 
 export async function verifyEmailHandler(req: Request, res: Response) {

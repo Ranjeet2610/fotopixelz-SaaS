@@ -35,3 +35,9 @@ export const resetPasswordSchema = z.object({
 export const googleOAuthQuerySchema = z.object({
   next: z.string().optional()
 })
+
+export const oauthExchangeSchema = z
+  .object({
+    code: z.string().min(1)
+  })
+  .strict()

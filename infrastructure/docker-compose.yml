@@ -8,7 +8,7 @@ volumes:
   postgres_data:
   pnpm_store:
   root_node_modules:
-  apps_web_node_modules:
+  apps_client_node_modules:
   apps_admin_node_modules:
   apps_workers_node_modules:
   services_api_node_modules:
@@ -21,7 +21,7 @@ x-app-volumes: &app-volumes
   - ..:/app
   - root_node_modules:/app/node_modules
   - pnpm_store:/pnpm/store
-  - apps_web_node_modules:/app/apps/web/node_modules
+  - apps_client_node_modules:/app/apps/client/node_modules
   - apps_admin_node_modules:/app/apps/admin/node_modules
   - apps_workers_node_modules:/app/apps/workers/node_modules
   - services_api_node_modules:/app/services/api/node_modules
@@ -119,16 +119,16 @@ services:
       retries: 10
       start_period: 120s
 
-  web:
+  client:
     build:
       context: ..
-      dockerfile: infrastructure/docker/web.Dockerfile
-    container_name: fotopixelz-web
+      dockerfile: infrastructure/docker/client.Dockerfile
+    container_name: fotopixelz-client
     restart: unless-stopped
     networks:
       - fotopixelz
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${CLIENT_PORT:-3000}:3000"
     env_file:
       - ../.env
     environment:
@@ -141,8 +141,8 @@ services:
       api:
         condition: service_healthy
     command: >
-      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'web...' --filter 'fotopixelz' &&
-             pnpm --filter web exec next dev -H 0.0.0.0 -p 3000"
+      sh -c "pnpm install --frozen-lockfile --prefer-offline --filter 'client...' --filter 'fotopixelz' &&
+             pnpm --filter client exec next dev -H 0.0.0.0 -p 3000"
 
   admin:
     build:

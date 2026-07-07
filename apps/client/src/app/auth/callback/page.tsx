@@ -15,6 +15,17 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   account_inactive: "Your account is inactive. Contact support for help.",
 };
 
+// The OAuth handoff code is single-use (services/api consumes it via Redis
+// GETDEL) and must never be re-submitted. A component-scoped guard (e.g.
+// useRef) cannot enforce that on its own: React development StrictMode
+// deliberately mounts -> cleans up -> remounts this component once, and the
+// second mount gets a fresh ref. Module scope survives that remount (only
+// the component function and hooks are re-invoked, not the module), so it's
+// the correct place for the "has this exact code already been submitted"
+// check — this is the standard idiom for a non-idempotent one-time action
+// inside an effect, not a stopgap.
+const submittedCodes = new Set<string>();
+
 function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,8 +36,21 @@ function OAuthCallbackContent() {
   useEffect(() => {
     let cancelled = false;
 
+    // Capture everything the effect needs from the URL up front, then strip
+    // the code (and error/next) from the address bar and history immediately
+    // — before any network request starts, not after it resolves. The code
+    // is a one-time secret; it shouldn't sit visible in the URL/history for
+    // the duration of the exchange, and it shouldn't be re-readable by a
+    // later render/remount once we've captured it.
+    const oauthError = searchParams.get("error");
+    const code = searchParams.get("code");
+    const next = searchParams.get("next");
+
+    if (window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+
     async function completeSignIn() {
-      const oauthError = searchParams.get("error");
       if (oauthError) {
         if (!cancelled) {
           setError(OAUTH_ERROR_MESSAGES[oauthError] ?? OAUTH_ERROR_MESSAGES.oauth_failed);
@@ -35,8 +59,7 @@ function OAuthCallbackContent() {
         return;
       }
 
-      const token = searchParams.get("token");
-      if (!token) {
+      if (!code) {
         if (!cancelled) {
           setError(OAUTH_ERROR_MESSAGES.oauth_failed);
           setProcessing(false);
@@ -44,15 +67,22 @@ function OAuthCallbackContent() {
         return;
       }
 
+      if (submittedCodes.has(code)) {
+        // Already submitted this exact single-use code (StrictMode remount)
+        // — skip the redundant exchange instead of resending an
+        // already-consumed code and rendering a spurious failure.
+        return;
+      }
+      submittedCodes.add(code);
+
       try {
-        const currentUser = await completeOAuthSession(token);
+        const currentUser = await completeOAuthSession(code);
         if (!isClientRole(currentUser.role)) {
           await logout();
           router.replace("/login?staff=blocked");
           return;
         }
 
-        const next = searchParams.get("next");
         router.replace(routeAfterAuth(currentUser.role, next));
       } catch {
         if (!cancelled) {
@@ -67,7 +97,11 @@ function OAuthCallbackContent() {
     return () => {
       cancelled = true;
     };
-  }, [completeOAuthSession, logout, router, searchParams]);
+    // Intentionally run once per mount only: the code/next/error are read
+    // directly from the URL a single time above, not re-derived from
+    // `searchParams` on every dependency change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (processing && !error) {
     return (

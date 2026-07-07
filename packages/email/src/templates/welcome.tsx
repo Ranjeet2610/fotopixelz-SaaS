@@ -1,3 +1,4 @@
+import React from 'react'
 import { Text } from '@react-email/components'
 import type { EmailBrandConfig, LocalizedEmailCopy } from '../types'
 import { EmailLayout } from './components/email-layout'

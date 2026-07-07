@@ -2,13 +2,14 @@ import { signAccessToken, type AccessTokenExpiresIn } from '@repo/auth'
 import { env } from '../../config/env'
 import { prisma } from '../../database/prisma'
 import { createClientUserWithWorkspace } from './client-workspace-bootstrap'
+import { consumeOAuthHandoffCode, createOAuthHandoffCode } from './oauth-handoff'
 import {
   createSignedOAuthState,
   generatePkcePair,
   sanitizeOAuthNextPath,
   verifySignedOAuthState
 } from './oauth-state'
-import type { AuthUserDTO } from './auth.types'
+import type { AuthResponse, AuthUserDTO } from './auth.types'
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -282,15 +283,26 @@ export async function handleGoogleOAuthCallback(
     const token = issueAccessToken(authUser)
 
     const next = sanitizeOAuthNextPath(statePayload.next)
+    const handoffCode = await createOAuthHandoffCode({ token, user: authUser })
     const params = new URLSearchParams({
-      token,
+      code: handoffCode,
       next
     })
 
     return {
       redirectUrl: `${env.webAppUrl}/auth/callback?${params.toString()}`
     }
-  } catch {
+  } catch (error) {
+    console.error('[google-oauth] callback failed:', error)
     return failureRedirect('oauth_failed')
   }
+}
+
+export async function exchangeOAuthHandoffCode(code: string): Promise<AuthResponse> {
+  const payload = await consumeOAuthHandoffCode(code)
+  if (!payload) {
+    throw new Error('Invalid or expired code')
+  }
+
+  return { token: payload.token, user: payload.user }
 }
