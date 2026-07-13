@@ -27,6 +27,7 @@ export const env = {
   enforceEmailVerification: process.env.ENFORCE_EMAIL_VERIFICATION !== 'false',
   storageProvider: process.env.STORAGE_PROVIDER ?? '',
   storageUploadExpirySeconds: Number(process.env.STORAGE_UPLOAD_EXPIRY_SECONDS ?? 900),
-  storageDownloadExpirySeconds: Number(process.env.STORAGE_DOWNLOAD_EXPIRY_SECONDS ?? 300)
+  storageDownloadExpirySeconds: Number(process.env.STORAGE_DOWNLOAD_EXPIRY_SECONDS ?? 300),
+  adminNotificationEmail: process.env.ADMIN_NOTIFICATION_EMAIL ?? ''
 }
 

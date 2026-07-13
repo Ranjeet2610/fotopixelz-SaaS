@@ -22,6 +22,28 @@ export {
 } from './auth/send-auth-emails'
 
 export {
+  sendAdminNewOrderEmail,
+  sendEditorAssignedEmail,
+  sendOrderConfirmationEmail,
+  sendOrderDeliveredEmail,
+  sendOrderReadyForReviewEmail,
+  sendQaAssignedEmail,
+  sendReworkRequiredEmail,
+  sendRevisionCompletedEmail,
+  sendRevisionRequestedEmail,
+  type OrderEmailContext,
+  type SendAdminNewOrderEmailInput,
+  type SendEditorAssignedEmailInput,
+  type SendOrderConfirmationEmailInput,
+  type SendOrderDeliveredEmailInput,
+  type SendOrderReadyForReviewEmailInput,
+  type SendQaAssignedEmailInput,
+  type SendReworkRequiredEmailInput,
+  type SendRevisionCompletedEmailInput,
+  type SendRevisionRequestedEmailInput
+} from './orders/send-order-emails'
+
+export {
   ForgotPasswordEmail,
   defaultForgotPasswordEmailCopy,
   type ForgotPasswordEmailCopy,
@@ -49,3 +71,40 @@ export {
 export { EmailLayout } from './templates/components/email-layout'
 export { EmailButton } from './templates/components/email-button'
 export { EmailFooter } from './templates/components/email-footer'
+export { EmailDetailList, type EmailDetailItem } from './templates/components/email-detail-list'
+
+export {
+  OrderConfirmationEmail,
+  defaultOrderConfirmationEmailCopy,
+  type OrderConfirmationEmailCopy,
+  type OrderConfirmationEmailProps
+} from './templates/order-confirmation'
+export {
+  OrderReadyForReviewEmail,
+  defaultOrderReadyForReviewEmailCopy,
+  type OrderReadyForReviewEmailCopy,
+  type OrderReadyForReviewEmailProps
+} from './templates/order-ready-for-review'
+export {
+  OrderDeliveredEmail,
+  defaultOrderDeliveredEmailCopy,
+  type OrderDeliveredEmailCopy,
+  type OrderDeliveredEmailProps
+} from './templates/order-delivered'
+export {
+  RevisionRequestedEmail,
+  defaultRevisionRequestedEmailCopy,
+  type RevisionRequestedEmailCopy,
+  type RevisionRequestedEmailProps
+} from './templates/revision-requested'
+export {
+  RevisionCompletedEmail,
+  defaultRevisionCompletedEmailCopy,
+  type RevisionCompletedEmailCopy,
+  type RevisionCompletedEmailProps
+} from './templates/revision-completed'
+export {
+  InternalOrderNoticeEmail,
+  type InternalOrderNoticeEmailCopy,
+  type InternalOrderNoticeEmailProps
+} from './templates/internal-order-notice'

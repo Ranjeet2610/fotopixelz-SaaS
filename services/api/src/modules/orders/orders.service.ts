@@ -13,6 +13,16 @@ import {
   createRevisionOrderComment,
   createSystemOrderComment
 } from '../order-comments/order-comments.service'
+import {
+  sendEditorAssignmentEmail,
+  sendOrderDeliveredEmails,
+  sendOrderPlacedEmails,
+  sendOrderReadyForReviewEmails,
+  sendQaAssignmentEmail,
+  sendRevisionCompletedEmails,
+  sendRevisionRequestedEmails,
+  sendReworkRequiredEmails
+} from './order-notification-emails'
 import type {
   AssignEditorInput,
   AssignQaInput,
@@ -246,6 +256,8 @@ export async function createOrder(context: RequestContext, input: CreateOrderInp
       orderNumber: order.orderNumber
     }
   })
+
+  await sendOrderPlacedEmails(order)
 
   return order
 }
@@ -505,6 +517,14 @@ export async function updateOrderStatus(context: RequestContext, input: UpdateOr
         attachmentMimeType: input.attachmentMimeType
       })
     }
+
+    if (input.status === 'READY_FOR_QA' && order.status === 'REVISION_REQUIRED') {
+      await sendRevisionCompletedEmails(updated)
+    } else if (input.status === 'READY_FOR_QA') {
+      await sendOrderReadyForReviewEmails(updated)
+    } else if (input.status === 'DELIVERED') {
+      await sendOrderDeliveredEmails(updated)
+    }
   }
 
   return updated
@@ -638,6 +658,15 @@ export async function assignEditor(context: RequestContext, input: AssignEditorI
   const editorLabel = editor?.name ?? editor?.email ?? 'editor'
   await createSystemOrderComment(order.id, `${order.orderNumber}: Order assigned to ${editorLabel}`, context.userId)
 
+  await sendEditorAssignmentEmail({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    editorId: input.editorId,
+    customerName: order.createdBy.name ?? order.createdBy.email,
+    service: order.items.map((item) => item.service?.name).filter(Boolean).join(', ') || 'Custom services',
+    dueAt: order.dueAt
+  })
+
   return updated
 }
 
@@ -677,6 +706,14 @@ export async function assignQa(context: RequestContext, input: AssignQaInput) {
   })
   const qaLabel = qaUser?.name ?? qaUser?.email ?? 'QA reviewer'
   await createSystemOrderComment(order.id, `${order.orderNumber}: QA reviewer assigned: ${qaLabel}`, context.userId)
+
+  await sendQaAssignmentEmail({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    qaId: input.qaId,
+    customerName: order.createdBy.name ?? order.createdBy.email,
+    service: order.items.map((item) => item.service?.name).filter(Boolean).join(', ') || 'Custom services'
+  })
 
   return updated
 }
@@ -933,6 +970,14 @@ export async function requestOrderRevision(context: RequestContext, input: Reque
     attachmentStorageKey: input.attachmentStorageKey,
     attachmentFileName: input.attachmentFileName,
     attachmentMimeType: input.attachmentMimeType
+  })
+
+  await sendRevisionRequestedEmails(updated)
+  await sendReworkRequiredEmails({
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    editorId: order.assignedEditorId,
+    qaComment: input.comment
   })
 
   return updated

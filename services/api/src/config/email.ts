@@ -33,6 +33,14 @@ export function buildLoginVerifiedRedirectUrl(verified: boolean) {
   return `${env.webAppUrl}/login?verified=${verified ? 'true' : 'false'}`
 }
 
+export function buildOrderUrl(orderId: string) {
+  return `${env.webAppUrl}/dashboard/orders/${orderId}`
+}
+
+export function buildAdminOrderUrl(orderId: string) {
+  return `${env.adminAppUrl}/admin/orders/${orderId}`
+}
+
 /**
  * One-time startup check so missing email configuration is visible in
  * server logs at boot, instead of only being discoverable the first time
