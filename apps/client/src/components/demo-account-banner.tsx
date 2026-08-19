@@ -15,11 +15,11 @@ export function DemoAccountBanner() {
   const creditsRemaining = getCreditsRemaining(organization);
 
   return (
-    <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+    <section className="rounded-xl border border-status-warning/30 bg-status-warning/10 p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-amber-800 uppercase dark:text-amber-200">
+            <span className="rounded-full bg-status-warning/20 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-status-warning uppercase">
               Demo Account
             </span>
             <span className="text-sm text-muted-foreground">{organization?.name}</span>

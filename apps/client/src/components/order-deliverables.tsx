@@ -9,14 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Thumbnail } from "@/components/dashboard/thumbnail";
 import { LoadingBlock } from "@/components/loading-block";
 import {
   downloadAllAssets,
@@ -100,7 +93,7 @@ export function OrderDeliverables({ orderId, orderUpdatedAt }: OrderDeliverables
   };
 
   return (
-    <Card className="border-emerald-500/30 bg-emerald-500/5">
+    <Card className="border-status-success/30 bg-status-success/5">
       <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle>Deliverables</CardTitle>
@@ -140,34 +133,32 @@ export function OrderDeliverables({ orderId, orderUpdatedAt }: OrderDeliverables
         ) : assets.length === 0 ? (
           <p className="text-sm text-muted-foreground">No deliverable files are available yet.</p>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>File name</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead className="text-right">Download</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {assets.map((asset) => (
-                <TableRow key={asset.id}>
-                  <TableCell>{asset.name || asset.fileName}</TableCell>
-                  <TableCell>{formatFileSize(asset)}</TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void handleDownload(asset)}
-                      disabled={downloadingId === asset.id}
-                    >
-                      {downloadingId === asset.id ? "Downloading…" : "Download"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {assets.map((asset) => (
+              <div key={asset.id} className="flex flex-col gap-2">
+                <div className="relative h-40 overflow-hidden rounded-lg sm:h-44">
+                  <Thumbnail asset={asset} className="h-full w-full" />
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium" title={asset.name || asset.fileName}>
+                      {asset.name || asset.fileName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{formatFileSize(asset)}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleDownload(asset)}
+                    disabled={downloadingId === asset.id}
+                  >
+                    {downloadingId === asset.id ? "…" : "Download"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {assets.length > 1 ? (

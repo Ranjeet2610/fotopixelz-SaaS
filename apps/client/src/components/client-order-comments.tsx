@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   createOrderComment,
@@ -67,29 +68,36 @@ export function ClientOrderComments({ orderId, readOnly = false }: ClientOrderCo
   }
 
   return (
-    <section className="rounded-xl border p-4 space-y-4">
+    <section className="border-t border-border pt-5">
       <div>
-        <h2 className="text-sm font-medium">Order comments</h2>
-        <p className="text-sm text-muted-foreground">Share feedback with the production team inside Fotopixelz.</p>
+        <h2 className="text-[13px] font-semibold">Production communication</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Feedback shared with the production team, and their response.
+        </p>
       </div>
 
-      {loading ? <p className="text-sm text-muted-foreground">Loading comments…</p> : null}
+      {loading ? <p className="mt-4 text-sm text-muted-foreground">Loading comments…</p> : null}
 
-      <div className="space-y-3">
+      <div className="mt-4 space-y-3">
         {items.length === 0 && !loading ? (
           <p className="text-sm text-muted-foreground">No comments yet.</p>
         ) : null}
         {items.map((comment) => (
-          <article key={comment.id} className="rounded-lg border p-3 text-sm">
-            <div className="flex flex-wrap gap-2 mb-2">
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                [{comment.commentType.replaceAll("_", " ")}]
-              </span>
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">
-                {comment.status.replaceAll("_", " ")}
+          <article key={comment.id} className="rounded-lg border border-border p-3.5 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-medium">
+                  {comment.user?.name ?? comment.user?.email}
+                </span>
+                <Badge status="neutral" showDot={false}>
+                  {comment.commentType.replaceAll("_", " ")}
+                </Badge>
+              </div>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {new Date(comment.createdAt).toLocaleString()}
               </span>
             </div>
-            <p className="whitespace-pre-wrap">{comment.body}</p>
+            <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
             {comment.asset ? (
               <p className="mt-2 text-xs text-muted-foreground">Linked image: {comment.asset.fileName}</p>
             ) : null}
@@ -98,19 +106,21 @@ export function ClientOrderComments({ orderId, readOnly = false }: ClientOrderCo
                 View reference: {comment.attachmentFileName}
               </a>
             ) : null}
-            <p className="mt-2 text-xs text-muted-foreground">
-              {comment.user?.name ?? comment.user?.email} · {new Date(comment.createdAt).toLocaleString()}
-            </p>
+            <div className="mt-2">
+              <Badge status="neutral" showDot={false}>
+                {comment.status.replaceAll("_", " ")}
+              </Badge>
+            </div>
           </article>
         ))}
       </div>
 
       {!readOnly ? (
-        <div className="space-y-3 border-t pt-4">
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
           <label className="grid gap-2 text-sm">
             <span className="font-medium">Your feedback</span>
             <textarea
-              className="min-h-24 rounded-md border px-3 py-2"
+              className="min-h-24 rounded-md border border-input px-3 py-2"
               value={body}
               onChange={(event) => setBody(event.target.value)}
               placeholder="Describe changes or reference images…"
@@ -125,7 +135,12 @@ export function ClientOrderComments({ orderId, readOnly = false }: ClientOrderCo
             />
           </label>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button type="button" disabled={submitting} onClick={() => void handleSubmit()}>
+          <Button
+            type="button"
+            className="bg-brand text-brand-foreground hover:bg-brand/90"
+            disabled={submitting}
+            onClick={() => void handleSubmit()}
+          >
             {submitting ? "Sending…" : "Send feedback"}
           </Button>
         </div>

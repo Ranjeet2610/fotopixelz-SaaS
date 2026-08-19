@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
 import { DemoAccountBanner } from "@/components/demo-account-banner";
 import { useOrganization } from "@/components/organization-provider";
-import { AccountStat } from "@/components/dashboard/account-stat";
 import {
   FilmstripSkeleton,
   HeroSkeleton,
@@ -14,6 +13,7 @@ import {
 import { HeroProductionCard } from "@/components/dashboard/hero-production-card";
 import { OrderLog } from "@/components/dashboard/order-log";
 import { ProductionCard } from "@/components/dashboard/production-card";
+import { ProductionLog } from "@/components/dashboard/production-log";
 import { ProofSheet } from "@/components/dashboard/proof-sheet";
 import { SectionAlert } from "@/components/dashboard/section-alert";
 import { Button } from "@/components/ui/button";
@@ -35,19 +35,21 @@ export default function Page() {
 
   return (
     <div className="space-y-9">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-bold tracking-wide text-muted-foreground uppercase">
             Production overview
           </p>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight sm:text-[26px]">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-[28px]">
             {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Welcome back"}
           </h1>
         </div>
-        <div className="flex items-baseline gap-8">
-          <AccountStat value={creditsRemaining} unit={`/ ${organization?.freeImageCredits ?? 0}`} label="Credits" />
-          {isDemo ? <AccountStat value={trialDaysRemaining} unit="days" label="Trial remaining" /> : null}
-        </div>
+        <p className="font-mono text-[11px] tracking-wide text-muted-foreground uppercase">
+          {organization?.name ?? "Workspace"}
+          {" · "}
+          {creditsRemaining}/{organization?.freeImageCredits ?? 0} credits
+          {isDemo ? ` · ${trialDaysRemaining} day${trialDaysRemaining === 1 ? "" : "s"} trial` : ""}
+        </p>
       </div>
 
       <DemoAccountBanner />
@@ -57,12 +59,14 @@ export default function Page() {
       {orders.loading ? (
         <HeroSkeleton />
       ) : !hasAnyOrders ? (
-        <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-          <p className="text-base font-medium">Start your first order</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-            Choose a service and upload your images to begin production.
-          </p>
-          <Button asChild className="bg-coral text-coral-foreground hover:bg-coral/90 mt-5">
+        <div className="flex flex-col items-start gap-3 border-l-2 border-border py-2 pl-5">
+          <div>
+            <p className="text-base font-medium">Start your first order</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              Choose a service and upload your images to begin production.
+            </p>
+          </div>
+          <Button asChild className="bg-brand text-brand-foreground hover:bg-brand/90">
             <Link href="/dashboard/orders/new">Start an order</Link>
           </Button>
         </div>
@@ -98,7 +102,9 @@ export default function Page() {
                 />
               ))}
             </div>
-          ) : null}
+          ) : (
+            <ProductionLog orders={log} />
+          )}
         </div>
       ) : null}
 

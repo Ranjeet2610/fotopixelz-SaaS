@@ -24,8 +24,8 @@ type StatusChipProps = {
 };
 
 // Real OrderStatus value, styled through the shared success/warning/error/info
-// bucket mapping (docs/DESIGN-SYSTEM.md §2/§8) — never the Electric Coral
-// brand accent, per docs/CLIENT-DASHBOARD.md §7.
+// bucket mapping (docs/DESIGN-SYSTEM.md §2/§8) — never the brand accent
+// color, per docs/CLIENT-DASHBOARD.md §7 and docs/REDESIGN-DIRECTION.md §7.1.
 export function StatusChip({ status, variant = "inline", className }: StatusChipProps) {
   const bucket = getOrderStatusBucket(status);
   const label = getClientOrderStatusLabel(status);

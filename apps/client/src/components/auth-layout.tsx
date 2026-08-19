@@ -9,9 +9,13 @@ type AuthLayoutProps = {
 export function AuthLayout({ title, description, children }: AuthLayoutProps) {
   return (
     <main className="grid min-h-full flex-1 lg:grid-cols-2">
-      <section className="relative hidden overflow-hidden bg-[oklch(0.17_0.01_260)] text-white lg:flex lg:flex-col lg:justify-between lg:p-12">
+      <section className="relative hidden overflow-hidden bg-sidebar text-sidebar-foreground lg:flex lg:flex-col lg:justify-between lg:p-12">
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_20%_20%,oklch(0.32_0.06_260/0.45),transparent_55%),radial-gradient(ellipse_60%_50%_at_80%_80%,oklch(0.28_0.04_200/0.35),transparent_50%)]"
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(135deg, color-mix(in oklch, white 4%, transparent) 0px, color-mix(in oklch, white 4%, transparent) 1px, transparent 1px, transparent 14px)",
+          }}
           aria-hidden="true"
         />
         <div className="relative z-10">
@@ -21,11 +25,11 @@ export function AuthLayout({ title, description, children }: AuthLayoutProps) {
           <h1 className="text-3xl leading-tight font-semibold tracking-tight">
             Enterprise-grade image production, built for modern teams.
           </h1>
-          <p className="text-sm leading-relaxed text-white/70">
+          <p className="text-sm leading-relaxed text-sidebar-muted-foreground">
             Upload assets, track orders, and manage deliverables from one secure client workspace.
           </p>
         </div>
-        <p className="relative z-10 text-xs text-white/45">Client workspace</p>
+        <p className="relative z-10 text-xs text-sidebar-muted-foreground">Client workspace</p>
       </section>
 
       <section className="flex flex-col justify-center px-6 py-12 sm:px-10 lg:px-14">

@@ -1,76 +1,61 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@repo/ui/tokens.css";
+@import "@repo/ui/components.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Pixelz-benchmark professional canvas: a light, neutral production
+   workspace (not the prior warm-charcoal editorial theme). Dark chrome is
+   reserved for navigation only (see --sidebar-* below) — the page canvas
+   itself is light so the product reads as operational image-production
+   software, not a dark creative portfolio. :root is the only theme block —
+   no @media (prefers-color-scheme) override — so the app looks the same
+   regardless of OS preference. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.975 0.003 95);
+  --foreground: oklch(0.2 0.012 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0.012 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --popover-foreground: oklch(0.2 0.012 260);
+  --primary: oklch(0.22 0.012 260);
+  --primary-foreground: oklch(0.98 0.003 95);
+  --secondary: oklch(0.95 0.004 95);
+  --secondary-foreground: oklch(0.22 0.012 260);
+  --muted: oklch(0.95 0.004 95);
+  --muted-foreground: oklch(0.48 0.012 260);
+  --accent: oklch(0.95 0.004 95);
+  --accent-foreground: oklch(0.22 0.012 260);
+  --destructive: oklch(0.55 0.2 25);
+  --border: oklch(0.885 0.006 95);
+  --input: oklch(0.885 0.006 95);
+  --ring: oklch(0.6 0.02 95);
+  --radius: 0.5rem;
 
-  /* Direction D — additive brand/status tokens (docs/DESIGN-SYSTEM.md,
-     docs/CLIENT-DASHBOARD.md). These extend the existing shadcn token set
-     above rather than replacing any of it. */
-  --coral: oklch(0.665 0.199 33.5); /* Electric Coral #FF5A36 */
-  --coral-foreground: oklch(0.99 0.01 40);
+  /* Dark navigation chrome — the one deliberately dark surface in the
+     system, used only for the client shell sidebar, never the page canvas. */
+  --sidebar: oklch(0.19 0.012 260);
+  --sidebar-foreground: oklch(0.94 0.006 95);
+  --sidebar-muted-foreground: oklch(0.63 0.014 260);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-active: oklch(1 0 0 / 7%);
+
+  /* Additive brand/status tokens (docs/DESIGN-SYSTEM.md,
+     docs/CLIENT-DASHBOARD.md). --brand is a restrained deep green, reserved
+     for primary CTAs and selected nav state — never a full-interface color.
+     Kept a distinct hue/chroma from --status-success so the two never read
+     as the same color. */
+  --brand: oklch(0.4 0.1 155);
+  --brand-foreground: oklch(0.98 0.01 95);
   --status-success: oklch(0.55 0.13 155);
-  --status-success-foreground: oklch(0.99 0.01 150);
-  --status-warning: oklch(0.62 0.14 65);
-  --status-warning-foreground: oklch(0.99 0.01 70);
+  --status-success-foreground: oklch(0.98 0.01 150);
+  --status-warning: oklch(0.62 0.15 60);
+  --status-warning-foreground: oklch(0.98 0.02 70);
   --status-error: oklch(0.55 0.19 25);
-  --status-error-foreground: oklch(0.99 0.01 25);
-  --status-info: oklch(0.5 0.13 250);
-  --status-info-foreground: oklch(0.99 0.01 250);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-
-    --coral: oklch(0.665 0.199 33.5);
-    --coral-foreground: oklch(0.99 0.01 40);
-    --status-success: oklch(0.62 0.13 155);
-    --status-success-foreground: oklch(0.15 0.02 150);
-    --status-warning: oklch(0.68 0.13 65);
-    --status-warning-foreground: oklch(0.15 0.02 70);
-    --status-error: oklch(0.62 0.19 25);
-    --status-error-foreground: oklch(0.15 0.02 25);
-    --status-info: oklch(0.62 0.13 250);
-    --status-info-foreground: oklch(0.15 0.02 250);
-  }
+  --status-error-foreground: oklch(0.98 0.02 25);
+  --status-info: oklch(0.55 0.14 250);
+  --status-info-foreground: oklch(0.98 0.02 250);
 }
 
 @theme inline {
@@ -98,8 +83,14 @@
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-coral: var(--coral);
-  --color-coral-foreground: var(--coral-foreground);
+  --font-display: var(--font-instrument-serif);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted-foreground: var(--sidebar-muted-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --color-status-success: var(--status-success);
   --color-status-success-foreground: var(--status-success-foreground);
   --color-status-warning: var(--status-warning);
@@ -359,4 +350,43 @@
     transparent 1px,
     transparent 12px
   );
+}
+
+/* Production-ticket registration marks — a print-production motif (corner
+   crop/registration ticks) used on the ticket frame when no real image
+   exists yet, replacing the flat placeholder rectangle with something that
+   reads as intentional (docs/CLIENT-VISUAL-DIRECTION.md §6). */
+.ticket-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  opacity: 0.4;
+}
+
+.ticket-corner-tl {
+  top: 14px;
+  left: 14px;
+  border-top: 1px solid var(--muted-foreground);
+  border-left: 1px solid var(--muted-foreground);
+}
+
+.ticket-corner-tr {
+  top: 14px;
+  right: 14px;
+  border-top: 1px solid var(--muted-foreground);
+  border-right: 1px solid var(--muted-foreground);
+}
+
+.ticket-corner-bl {
+  bottom: 14px;
+  left: 14px;
+  border-bottom: 1px solid var(--muted-foreground);
+  border-left: 1px solid var(--muted-foreground);
+}
+
+.ticket-corner-br {
+  bottom: 14px;
+  right: 14px;
+  border-bottom: 1px solid var(--muted-foreground);
+  border-right: 1px solid var(--muted-foreground);
 }

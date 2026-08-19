@@ -1,0 +1,225 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --ink: #1c1917;
+      --ink-soft: #6b6459;
+      --bg: #faf9f6;
+      --surface: #ffffff;
+      --surface-tint: #f3f1ec;
+      --line: #e7e2da;
+      --coral: #ff5a36;
+      --coral-soft: #fff0ec;
+      --success: #1e8e5a;
+      --success-soft: #eaf6ef;
+      --warning: #b5720a;
+      --warning-soft: #fbf1e2;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); font-family: Geist, ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+    a { color: var(--coral); text-decoration: none; }
+    a:hover { color: #e04a29; }
+    .mono { font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+    .placeholder-thumb {
+      background-color: #efe9de;
+      background-image:
+        repeating-linear-gradient(135deg, rgba(28,25,23,0.05) 0px, rgba(28,25,23,0.05) 1px, transparent 1px, transparent 14px);
+      display: flex;
+      align-items: flex-end;
+      position: relative;
+      overflow: hidden;
+    }
+    .placeholder-thumb.tone-a { background-color: #f0e3da; }
+    .placeholder-thumb.tone-b { background-color: #e7ece6; }
+    .placeholder-thumb.tone-c { background-color: #ece3ee; }
+    .placeholder-thumb.tone-d { background-color: #e3e9ee; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      height: 40px; padding: 0 18px; border-radius: 8px;
+      font-size: 14px; font-weight: 500; cursor: pointer; border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--coral); color: #fffaf7; }
+    .btn-outline { background: transparent; border-color: var(--line); color: var(--ink); }
+  </style>
+</helmet>
+<div style="width: 1440px; min-height: 1024px; background: var(--bg);">
+
+  <!-- Top bar -->
+  <div style="display:flex; align-items:center; justify-content:space-between; padding: 20px 40px; border-bottom: 1px solid var(--line);">
+    <div style="display:flex; align-items:center; gap: 40px;">
+      <div style="font-size: 15px; font-weight: 700; letter-spacing: 0.04em;">FOTOPIXELZ</div>
+      <div style="display:flex; align-items:center; gap: 28px; font-size: 14px; color: var(--ink-soft);">
+        <span style="color: var(--ink); font-weight: 500; border-bottom: 2px solid var(--coral); padding-bottom: 20px; margin-bottom: -21px;">Overview</span>
+        <span>Orders</span>
+        <span>Assets</span>
+        <span>Billing</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap: 16px;">
+      <div class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New order
+      </div>
+      <div style="width:36px; height:36px; border-radius:999px; background:#2b2723; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">R</div>
+    </div>
+  </div>
+
+  <div style="padding: 32px 40px 56px;">
+
+    <!-- Greeting + trial strip -->
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom: 28px;">
+      <div>
+        <p style="margin:0 0 4px; font-size:13px; color: var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em;">Welcome back</p>
+        <h1 style="margin:0; font-size:28px; font-weight:600; letter-spacing:-0.01em;">Ranjeet's workspace</h1>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 16px;">
+        <span style="font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em;">Demo trial</span>
+        <div style="width:120px; height:6px; border-radius:999px; background:var(--surface-tint); overflow:hidden;">
+          <div style="width:62%; height:100%; background:var(--coral);"></div>
+        </div>
+        <span class="mono" style="font-size:13px;">31 / 50 credits</span>
+        <span style="font-size:13px; color:var(--ink-soft);">·</span>
+        <span style="font-size:13px;">9 days left</span>
+      </div>
+    </div>
+
+    <!-- Continue-where-you-left-off spotlight -->
+    <div style="display:flex; gap: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 32px;">
+      <div class="placeholder-thumb tone-a" style="width: 340px; flex-shrink:0;">
+        <div style="position:absolute; top:14px; left:14px; background:rgba(28,25,23,0.85); color:#fff; font-size:11px; font-weight:600; padding:4px 9px; border-radius:6px;" class="mono">4 / 12 uploaded</div>
+      </div>
+      <div style="flex:1; padding: 26px 26px 26px 0; display:flex; flex-direction:column; justify-content:center; gap:14px;">
+        <div>
+          <p style="margin:0 0 6px; font-size:12px; color:var(--ink-soft);" class="mono">FP-2026-000041</p>
+          <h2 style="margin:0 0 8px; font-size:22px; font-weight:600;">Spring Catalog Retouching</h2>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="display:inline-flex; align-items:center; gap:6px; background:var(--warning-soft); color:var(--warning); font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;">
+              <span style="width:6px; height:6px; border-radius:999px; background:currentColor;"></span> Awaiting upload
+            </span>
+            <span style="font-size:13px; color:var(--ink-soft);">Continue uploading to move this into production</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <div class="btn btn-primary">Continue upload</div>
+          <div class="btn btn-outline">View order</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders gallery grid -->
+    <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;">
+      <h3 style="margin:0; font-size:16px; font-weight:600;">Your orders</h3>
+      <a href="#" style="font-size:13px;">View all →</a>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:20px; margin-bottom: 40px;">
+
+      <!-- Order card: In progress -->
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden;">
+        <div class="placeholder-thumb tone-b" style="height:160px;"></div>
+        <div style="padding:16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:var(--ink-soft);" class="mono">FP-2026-000039</p>
+          <p style="margin:0 0 10px; font-size:15px; font-weight:600;">Ghost Mannequin Batch 12</p>
+          <div style="display:flex; align-items:center; justify-content:between; gap:8px; margin-bottom:10px;">
+            <span style="display:inline-flex; align-items:center; gap:6px; background:#e6efff; color:#2563ac; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;">
+              <span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> In production
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft);">
+            <span>24 images</span>
+            <span class="mono">$66.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order card: QA -->
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden;">
+        <div class="placeholder-thumb tone-c" style="height:160px;"></div>
+        <div style="padding:16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:var(--ink-soft);" class="mono">FP-2026-000037</p>
+          <p style="margin:0 0 10px; font-size:15px; font-weight:600;">Jewelry Hero Shots</p>
+          <div style="margin-bottom:10px;">
+            <span style="display:inline-flex; align-items:center; gap:6px; background:var(--warning-soft); color:var(--warning); font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;">
+              <span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> In review
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft);">
+            <span>8 images</span>
+            <span class="mono">$28.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order card: Delivered -->
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden;">
+        <div class="placeholder-thumb tone-d" style="height:160px;"></div>
+        <div style="padding:16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:var(--ink-soft);" class="mono">FP-2026-000031</p>
+          <p style="margin:0 0 10px; font-size:15px; font-weight:600;">Fall Lookbook — Wave 2</p>
+          <div style="margin-bottom:10px;">
+            <span style="display:inline-flex; align-items:center; gap:6px; background:var(--success-soft); color:var(--success); font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;">
+              <span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> Delivered
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft);">
+            <span>40 images</span>
+            <span class="mono">$120.00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order card: Revision -->
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden;">
+        <div class="placeholder-thumb tone-a" style="height:160px;"></div>
+        <div style="padding:16px;">
+          <p style="margin:0 0 4px; font-size:11px; color:var(--ink-soft);" class="mono">FP-2026-000028</p>
+          <p style="margin:0 0 10px; font-size:15px; font-weight:600;">Product Cutouts — SKU 100-140</p>
+          <div style="margin-bottom:10px;">
+            <span style="display:inline-flex; align-items:center; gap:6px; background:#fee4e2; color:#c0362c; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;">
+              <span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> Revision requested
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft);">
+            <span>41 images</span>
+            <span class="mono">$114.80</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent deliverables filmstrip -->
+    <div>
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:16px; font-weight:600;">Ready to download</h3>
+        <a href="#" style="font-size:13px;">Open assets →</a>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap:14px;">
+        <div class="placeholder-thumb tone-b" style="height:110px; border-radius:10px;"></div>
+        <div class="placeholder-thumb tone-c" style="height:110px; border-radius:10px;"></div>
+        <div class="placeholder-thumb tone-d" style="height:110px; border-radius:10px;"></div>
+        <div class="placeholder-thumb tone-a" style="height:110px; border-radius:10px;"></div>
+        <div class="placeholder-thumb tone-b" style="height:110px; border-radius:10px;"></div>
+        <div style="height:110px; border-radius:10px; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--ink-soft);">+35 more</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#ff5a36","section":"Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

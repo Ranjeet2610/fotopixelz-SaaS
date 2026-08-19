@@ -35,7 +35,7 @@ export function OrderStatusTimeline({ status }: { status: string }) {
   }
 
   return (
-    <section className="rounded-xl border p-4">
+    <section className="rounded-xl border border-border p-5">
       <h2 className="text-sm font-medium">Order progress</h2>
       <ol className="mt-4 grid gap-3 sm:grid-cols-5">
         {TIMELINE_STEPS.map((step, index) => {
@@ -46,8 +46,8 @@ export function OrderStatusTimeline({ status }: { status: string }) {
               <span
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full border text-xs font-semibold",
-                  state === "active" && "border-primary bg-primary text-primary-foreground",
-                  state === "complete" && "border-primary bg-primary/10 text-primary",
+                  state === "active" && "border-brand bg-brand text-brand-foreground",
+                  state === "complete" && "border-brand/40 bg-brand/10 text-brand",
                   state === "pending" && "border-border text-muted-foreground",
                 )}
               >

@@ -321,7 +321,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
 
     return (
       <div className="space-y-6">
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card className="border-status-success/30 bg-status-success/5">
           <CardHeader>
             <CardTitle>Order submitted successfully</CardTitle>
             <CardDescription>
@@ -350,7 +350,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
   if (isSubmitPhase) {
     return (
       <div className="space-y-6">
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card className="border-status-success/30 bg-status-success/5">
           <CardHeader>
             <CardTitle>Images uploaded</CardTitle>
             <CardDescription>
@@ -361,7 +361,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
         </Card>
 
         {billing.imagesNotUploaded > 0 ? (
-          <Card className="border-amber-500/30 bg-amber-500/5">
+          <Card className="border-status-warning/30 bg-status-warning/5">
             <CardHeader>
               <CardTitle>Upload shortfall</CardTitle>
               <CardDescription>
@@ -380,7 +380,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
         <BillingSummary billing={billing} currency={order.currency} />
 
         {billing.paymentRequired ? (
-          <Card className="border-amber-500/30 bg-amber-500/5">
+          <Card className="border-status-warning/30 bg-status-warning/5">
             <CardHeader>
               <CardTitle>Payment required</CardTitle>
               <CardDescription>
@@ -417,7 +417,12 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
                   ? `Submit order — ${formatMoney(billing.amountDue, order.currency)} due after credits.`
                   : "Submit with free credits — no payment due."}
           </p>
-          <Button type="button" onClick={() => void handleSubmit()} disabled={!canSubmit}>
+          <Button
+            type="button"
+            className="bg-brand text-brand-foreground hover:bg-brand/90"
+            onClick={() => void handleSubmit()}
+            disabled={!canSubmit}
+          >
             {submitting ? "Submitting…" : "Submit order"}
           </Button>
         </div>
@@ -447,7 +452,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
   return (
     <div className="space-y-6">
       {order.status === "SUBMITTED" ? (
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
+        <Card className="border-status-success/30 bg-status-success/5">
           <CardHeader>
             <CardTitle>Order submitted successfully</CardTitle>
             <CardDescription>
@@ -464,7 +469,7 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
       {uploadedCount > 0 ? (
         <>
           {billing.imagesNotUploaded > 0 ? (
-            <Card className="border-amber-500/30 bg-amber-500/5">
+            <Card className="border-status-warning/30 bg-status-warning/5">
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground">
                   Expected {billing.expectedImages} images · Uploaded {billing.uploadedImages} ·{" "}
@@ -566,7 +571,12 @@ export function OrderUploadPanel({ order, onOrderUpdated }: OrderUploadPanelProp
               ? "Upload at least one image to continue."
               : `${uploadedCount} image${uploadedCount === 1 ? "" : "s"} ready.`}
         </p>
-        <Button type="button" onClick={() => void handleContinue()} disabled={!canContinue}>
+        <Button
+          type="button"
+          className="bg-brand text-brand-foreground hover:bg-brand/90"
+          onClick={() => void handleContinue()}
+          disabled={!canContinue}
+        >
           {submitting ? "Saving…" : "Continue"}
         </Button>
       </div>

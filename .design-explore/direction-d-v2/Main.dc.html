@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --ink:#1c1917; --ink-soft:#6b6459; --ink-faint:#9a9284; --bg:#faf9f6; --surface:#ffffff;
+      --surface-tint:#f3f1ec; --line:#e7e2da; --coral:#ff5a36;
+      --success:#1e8e5a; --warning:#b5720a; --error:#c0362c; --info:#2563ac;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); font-family:Geist, ui-sans-serif, system-ui, -apple-system, sans-serif; color:var(--ink); }
+    a { color:var(--coral); text-decoration:none; }
+    .mono { font-family:"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+    .img {
+      background-color:#efe9de;
+      background-image: repeating-linear-gradient(135deg, rgba(28,25,23,0.045) 0px, rgba(28,25,23,0.045) 1px, transparent 1px, transparent 11px);
+      position:relative; overflow:hidden;
+    }
+    .chip { display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:999px; letter-spacing:0.01em; }
+    .dot { width:5px; height:5px; border-radius:999px; background:currentColor; }
+    .btn { display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+    .btn-primary { background:var(--coral); color:#fffaf7; }
+    .btn-outline { background:transparent; border-color:var(--line); color:var(--ink); }
+    .eyebrow { font-size:10.5px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.09em; }
+    .stage-track { display:flex; gap:3px; }
+    .stage-seg { flex:1; height:3px; border-radius:2px; background:var(--line); }
+    .stage-seg.on { background:var(--ink); }
+  </style>
+</helmet>
+<div style="width:1440px; min-height:1160px; background:var(--bg);">
+
+  <!-- Top bar -->
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 44px; border-bottom:1px solid var(--line);">
+    <div style="display:flex; align-items:center; gap:44px;">
+      <div style="font-size:14px; font-weight:700; letter-spacing:0.05em;">FOTOPIXELZ</div>
+      <div style="display:flex; align-items:center; gap:28px; font-size:13.5px; color:var(--ink-soft);">
+        <span style="color:var(--ink); font-weight:600; border-bottom:2px solid var(--coral); padding-bottom:21px; margin-bottom:-22px;">Overview</span>
+        <span>Orders</span><span>Assets</span><span>Billing</span>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:18px;">
+      <div style="text-align:right;">
+        <p style="margin:0; font-size:12.5px; font-weight:600;">Northline Retail Co.</p>
+        <p style="margin:0; font-size:10.5px; color:var(--ink-faint);">Workspace</p>
+      </div>
+      <div style="width:32px; height:32px; border-radius:999px; background:#2b2723; color:#fff; display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600;">R</div>
+      <div class="btn btn-primary">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New order
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:36px 44px 56px;">
+
+    <!-- Greeting + credits, typographic not boxy -->
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:36px;">
+      <div>
+        <p class="eyebrow" style="margin:0 0 6px;">Production overview</p>
+        <h1 style="margin:0; font-size:26px; font-weight:600; letter-spacing:-0.01em;">6 orders in motion</h1>
+      </div>
+      <div style="display:flex; align-items:baseline; gap:36px;">
+        <div style="text-align:right;">
+          <p class="mono" style="margin:0; font-size:30px; font-weight:700; line-height:1;">31<span style="font-size:15px; color:var(--ink-faint); font-weight:500;"> / 50</span></p>
+          <p class="eyebrow" style="margin:4px 0 0;">Credits used</p>
+        </div>
+        <div style="text-align:right;">
+          <p class="mono" style="margin:0; font-size:30px; font-weight:700; line-height:1;">9<span style="font-size:15px; color:var(--ink-faint); font-weight:500;"> days</span></p>
+          <p class="eyebrow" style="margin:4px 0 0;">Trial remaining</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero + up-next -->
+    <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:22px; margin-bottom:40px;">
+
+      <!-- Hero production card -->
+      <div style="border-radius:14px; overflow:hidden; box-shadow:0 8px 24px -12px rgba(28,25,23,0.18); border:1px solid var(--line);">
+        <div class="img" style="height:340px;">
+          <div style="position:absolute; top:16px; left:16px;" class="chip" style="background:rgba(28,25,23,0.82); color:#fff;">4 of 12 uploaded</div>
+          <div style="position:absolute; top:16px; right:16px;" class="chip" style="background:#fbf1e2; color:var(--warning);"><span class="dot"></span>Awaiting upload</div>
+        </div>
+        <div style="background:var(--surface); padding:20px 22px;">
+          <p class="mono" style="margin:0 0 4px; font-size:11.5px; color:var(--ink-faint);">FP-2026-000041</p>
+          <div style="display:flex; align-items:flex-end; justify-content:space-between;">
+            <h2 style="margin:0; font-size:19px; font-weight:600;">Spring Catalog Retouching</h2>
+            <div class="btn btn-primary">Continue upload</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Up next stack -->
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <p class="eyebrow" style="margin:0;">Up next</p>
+        <div style="display:flex; gap:14px; flex:1; border-radius:12px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="width:120px; flex-shrink:0; background-color:#e7ece6;">
+            <div style="position:absolute; bottom:8px; left:8px;" class="chip" style="background:rgba(37,99,172,0.92); color:#fff; font-size:9.5px; padding:3px 7px;">In progress</div>
+          </div>
+          <div style="flex:1; background:var(--surface); padding:14px 16px 14px 0; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+            <p class="mono" style="margin:0; font-size:11px; color:var(--ink-faint);">FP-2026-000039</p>
+            <p style="margin:0; font-size:14px; font-weight:600;">Ghost Mannequin Batch 12</p>
+            <p style="margin:0; font-size:11.5px; color:var(--ink-soft);">24 images · Due Jun 18</p>
+          </div>
+        </div>
+        <div style="display:flex; gap:14px; flex:1; border-radius:12px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="width:120px; flex-shrink:0; background-color:#ece3ee;">
+            <div style="position:absolute; bottom:8px; left:8px;" class="chip" style="background:rgba(181,114,10,0.92); color:#fff; font-size:9.5px; padding:3px 7px;">Ready for QA</div>
+          </div>
+          <div style="flex:1; background:var(--surface); padding:14px 16px 14px 0; display:flex; flex-direction:column; justify-content:center; gap:6px;">
+            <p class="mono" style="margin:0; font-size:11px; color:var(--ink-faint);">FP-2026-000037</p>
+            <p style="margin:0; font-size:14px; font-weight:600;">Jewelry Hero Shots</p>
+            <p style="margin:0; font-size:11.5px; color:var(--ink-soft);">8 images · Due Jun 22</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- In production filmstrip -->
+    <div style="margin-bottom:40px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;">
+        <h2 style="margin:0; font-size:15.5px; font-weight:600;">In production</h2>
+        <a href="#" style="font-size:12.5px;">View all →</a>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px;">
+
+        <div style="border-radius:10px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="height:130px; background-color:#f0e3da;">
+            <div style="position:absolute; top:8px; right:8px;" class="chip" style="background:rgba(28,25,23,0.8); color:#fff; font-size:9.5px; padding:3px 7px;">Revision · R2</div>
+          </div>
+          <div style="background:var(--surface); padding:12px 13px;">
+            <p style="margin:0 0 6px; font-size:12.5px; font-weight:600; line-height:1.25;">Product Cutouts — SKU 100-140</p>
+            <p class="mono" style="margin:0 0 8px; font-size:10.5px; color:var(--ink-faint);">FP-000028 · 41 img</p>
+            <div class="stage-track"><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg"></div><div class="stage-seg"></div></div>
+          </div>
+        </div>
+
+        <div style="border-radius:10px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="height:130px; background-color:#e3e9ee;">
+            <div style="position:absolute; top:8px; right:8px;" class="chip" style="background:rgba(30,142,90,0.9); color:#fff; font-size:9.5px; padding:3px 7px;">Delivered</div>
+          </div>
+          <div style="background:var(--surface); padding:12px 13px;">
+            <p style="margin:0 0 6px; font-size:12.5px; font-weight:600; line-height:1.25;">Fall Lookbook — Wave 2</p>
+            <p class="mono" style="margin:0 0 8px; font-size:10.5px; color:var(--ink-faint);">FP-000031 · 40 img</p>
+            <div class="stage-track"><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div></div>
+          </div>
+        </div>
+
+        <div style="border-radius:10px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="height:130px; background-color:#f5e8d8;">
+            <div style="position:absolute; top:8px; right:8px;" class="chip" style="background:rgba(37,99,172,0.9); color:#fff; font-size:9.5px; padding:3px 7px;">In progress</div>
+          </div>
+          <div style="background:var(--surface); padding:12px 13px;">
+            <p style="margin:0 0 6px; font-size:12.5px; font-weight:600; line-height:1.25;">Summer Accessories</p>
+            <p class="mono" style="margin:0 0 8px; font-size:10.5px; color:var(--ink-faint);">FP-000034 · 16 img</p>
+            <div class="stage-track"><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg"></div><div class="stage-seg"></div><div class="stage-seg"></div></div>
+          </div>
+        </div>
+
+        <div style="border-radius:10px; overflow:hidden; border:1px solid var(--line);">
+          <div class="img" style="height:130px; background-color:#e6e3ec;">
+            <div style="position:absolute; top:8px; right:8px;" class="chip" style="background:rgba(181,114,10,0.9); color:#fff; font-size:9.5px; padding:3px 7px;">Ready for QA</div>
+          </div>
+          <div style="background:var(--surface); padding:12px 13px;">
+            <p style="margin:0 0 6px; font-size:12.5px; font-weight:600; line-height:1.25;">Jewelry Hero Shots</p>
+            <p class="mono" style="margin:0 0 8px; font-size:10.5px; color:var(--ink-faint);">FP-000037 · 8 img</p>
+            <div class="stage-track"><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg on"></div><div class="stage-seg"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ready to download — proof sheet -->
+    <div style="margin-bottom:40px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:16px;">
+        <h2 style="margin:0; font-size:15.5px; font-weight:600;">Ready to download</h2>
+        <a href="#" style="font-size:12.5px;">Open assets →</a>
+      </div>
+      <div style="display:grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap:10px;">
+        <div class="img" style="height:96px; border-radius:8px; background-color:#e7ece6;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#f0e3da;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#e3e9ee;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#ece3ee;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#f5e8d8;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#e6e3ec;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div class="img" style="height:96px; border-radius:8px; background-color:#efe0d0;"><div style="position:absolute; bottom:6px; right:6px; width:22px; height:22px; border-radius:999px; background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2.5"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg></div></div>
+        <div style="height:96px; border-radius:8px; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; font-size:11.5px; color:var(--ink-faint);" class="mono">+33</div>
+      </div>
+    </div>
+
+    <!-- Recent orders — quiet log, deliberate contrast to imagery above -->
+    <div>
+      <p class="eyebrow" style="margin:0 0 12px;">Order log</p>
+      <div style="border-top:1px solid var(--line);">
+        <div style="display:grid; grid-template-columns: 40px 130px 1fr 150px 90px 90px; gap:14px; align-items:center; padding:11px 4px; border-bottom:1px solid var(--line);">
+          <div style="width:30px; height:30px; border-radius:6px; background:#f0e3da;"></div>
+          <span class="mono" style="font-size:11.5px; color:var(--ink-faint);">FP-000041</span>
+          <span style="font-size:13px;">Spring Catalog Retouching</span>
+          <span style="font-size:11.5px; color:var(--warning); display:flex; align-items:center; gap:5px;"><span class="dot"></span>Awaiting upload</span>
+          <span style="font-size:12px; color:var(--ink-soft);">12 images</span>
+          <span class="mono" style="font-size:12.5px; text-align:right;">$33.00</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 40px 130px 1fr 150px 90px 90px; gap:14px; align-items:center; padding:11px 4px; border-bottom:1px solid var(--line);">
+          <div style="width:30px; height:30px; border-radius:6px; background:#e7ece6;"></div>
+          <span class="mono" style="font-size:11.5px; color:var(--ink-faint);">FP-000039</span>
+          <span style="font-size:13px;">Ghost Mannequin Batch 12</span>
+          <span style="font-size:11.5px; color:var(--info); display:flex; align-items:center; gap:5px;"><span class="dot"></span>In progress</span>
+          <span style="font-size:12px; color:var(--ink-soft);">24 images</span>
+          <span class="mono" style="font-size:12.5px; text-align:right;">$66.00</span>
+        </div>
+        <div style="display:grid; grid-template-columns: 40px 130px 1fr 150px 90px 90px; gap:14px; align-items:center; padding:11px 4px;">
+          <div style="width:30px; height:30px; border-radius:6px; background:#e3e9ee;"></div>
+          <span class="mono" style="font-size:11.5px; color:var(--ink-faint);">FP-000031</span>
+          <span style="font-size:13px;">Fall Lookbook — Wave 2</span>
+          <span style="font-size:11.5px; color:var(--success); display:flex; align-items:center; gap:5px;"><span class="dot"></span>Delivered</span>
+          <span style="font-size:12px; color:var(--ink-soft);">40 images</span>
+          <span class="mono" style="font-size:12.5px; text-align:right;">$120.00</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

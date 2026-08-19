@@ -10,7 +10,7 @@ export function OrderFlowProgress({
   completed?: boolean;
 }) {
   return (
-    <nav aria-label="Order progress" className="w-full">
+    <nav aria-label="Order progress" className="w-full rounded-xl border border-border p-5">
       <ol className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {STEP_LABELS.map((label, index) => {
           const stepNumber = index + 1;
@@ -23,8 +23,8 @@ export function OrderFlowProgress({
                 <span
                   className={cn(
                     "flex size-8 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
-                    isActive && "border-primary bg-primary text-primary-foreground",
-                    isComplete && "border-primary bg-primary/10 text-primary",
+                    isActive && "border-brand bg-brand text-brand-foreground",
+                    isComplete && "border-brand/40 bg-brand/10 text-brand",
                     !isActive && !isComplete && "border-border text-muted-foreground",
                   )}
                   aria-current={isActive ? "step" : undefined}
@@ -44,7 +44,7 @@ export function OrderFlowProgress({
                 <div
                   className={cn(
                     "hidden h-px flex-1 bg-border sm:block",
-                    isComplete && "bg-primary/40",
+                    isComplete && "bg-brand/30",
                   )}
                   aria-hidden
                 />
