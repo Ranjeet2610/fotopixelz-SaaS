@@ -107,6 +107,8 @@ export type CreatedOrder = {
   creditsUsed: number;
   categoryId?: string | null;
   instructions?: string | null;
+  dueDate?: string | null;
+  reviewRound?: number;
   createdAt?: string;
   updatedAt?: string;
   items?: OrderServiceLine[];

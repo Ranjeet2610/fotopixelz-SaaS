@@ -1,0 +1,88 @@
+/**
+ * Fotopixelz shared design tokens — @repo/ui
+ *
+ * Source of truth: docs/DESIGN-SYSTEM.md.
+ *
+ * LOCKED values (do not change without updating docs/DESIGN-SYSTEM.md and
+ * getting explicit new approval):
+ *   - --ui-color-primary (Electric Coral, #FF5A36)
+ *   - font roles: sans = Geist (workhorse), mono = Geist Mono (metadata only),
+ *     display = Instrument Serif (editorial only, never used by the
+ *     components in this package — Button/Card/Badge/Alert are all
+ *     product UI, not editorial moments)
+ *
+ * FIRST-PASS PROPOSED values (explicitly left open in docs/DESIGN-SYSTEM.md
+ * — these are a reasonable warm-neutral starting point so the package is
+ * usable today, not a final design review; adjust freely in this one file):
+ *   - background / surface / foreground / muted / border / secondary
+ *   - success / warning / error / info hues
+ *   - exact radius sizes, spacing scale, motion durations
+ *
+ * Consuming apps should load this file once (e.g. via a CSS @import) before
+ * components.css. Font custom properties (--font-geist-sans etc.) are set
+ * by each app's own next/font/google usage in its root layout — this file
+ * only *references* them with system-font fallbacks, so components degrade
+ * gracefully even before an app wires up a given font.
+ */
+
+:root {
+  /* ---- Brand accent — LOCKED ---- */
+  --ui-color-primary: #ff5a36; /* Electric Coral */
+  --ui-color-primary-foreground: #fffaf7;
+
+  /* ---- Warm neutral foundation — first-pass proposed ---- */
+  --ui-color-background: #faf9f6;
+  --ui-color-surface: #f3f1ec;
+  --ui-color-foreground: #1c1917;
+  --ui-color-muted: #8a8378;
+  --ui-color-muted-foreground: #6b6459;
+  --ui-color-border: #e7e2da;
+
+  /* Quieter secondary accent — deliberately not a second bright color */
+  --ui-color-secondary: #57514a;
+  --ui-color-secondary-foreground: #faf9f6;
+
+  /* ---- Status colors — independent from --ui-color-primary, LOCKED rule ---- */
+  --ui-color-success: #1e8e5a;
+  --ui-color-success-foreground: #fffaf7;
+  --ui-color-warning: #b5720a;
+  --ui-color-warning-foreground: #fffaf7;
+  --ui-color-error: #c0362c;
+  --ui-color-error-foreground: #fffaf7;
+  --ui-color-info: #2563ac;
+  --ui-color-info-foreground: #fffaf7;
+
+  /* ---- Radius — mostly flat, pill reserved for badges only ---- */
+  --ui-radius-small: 6px;
+  --ui-radius-medium: 10px;
+  --ui-radius-large: 16px;
+  --ui-radius-pill: 999px;
+
+  /* ---- Spacing — 4px base unit, mirrors Tailwind's default scale ---- */
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+  --ui-space-8: 32px;
+
+  /* ---- Motion ---- */
+  --ui-duration-fast: 150ms;
+  --ui-duration-base: 200ms;
+  --ui-duration-slow: 300ms;
+  --ui-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- Typography — LOCKED roles, app-supplied fonts with fallbacks ---- */
+  --ui-font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  --ui-font-mono: var(--font-geist-mono, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  --ui-font-display: var(--font-instrument-serif, Georgia, "Times New Roman", serif);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-duration-fast: 0ms;
+    --ui-duration-base: 0ms;
+    --ui-duration-slow: 0ms;
+  }
+}

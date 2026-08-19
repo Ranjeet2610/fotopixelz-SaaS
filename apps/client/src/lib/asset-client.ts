@@ -23,6 +23,14 @@ export async function getAssetDownloadUrl(assetId: string) {
   });
 }
 
+// Adapter for LazyDeliverablePreview's fetchPreviewUrl prop, which expects
+// { previewUrl }. Reuses the same presigned-GET download-url endpoint —
+// there is no separate preview endpoint for deliverables.
+export async function getAssetPreviewUrl(assetId: string) {
+  const { downloadUrl } = await apiRequest<AssetDownload>(`/assets/${assetId}/download-url`);
+  return { previewUrl: downloadUrl };
+}
+
 export async function downloadAsset(asset: AssetRecord) {
   const { downloadUrl } = await getAssetDownloadUrl(asset.id);
   await triggerFileDownload(downloadUrl, asset.fileName || asset.name);

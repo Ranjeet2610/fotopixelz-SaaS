@@ -54,3 +54,29 @@ export function formatOrderDate(value: string | Date) {
 export function isPreUploadOrderStatus(status: string) {
   return status === "DRAFT" || status === "SUBMITTED";
 }
+
+export type OrderStatusBucket = "success" | "warning" | "error" | "info" | "neutral";
+
+// Mirrors apps/admin/src/components/ui.tsx's STATUS_BUCKET mapping so
+// status colors stay consistent across Client and Admin (docs/DESIGN-SYSTEM.md).
+export function getOrderStatusBucket(status: string): OrderStatusBucket {
+  switch (status) {
+    case "DELIVERED":
+    case "APPROVED":
+      return "success";
+    case "DRAFT":
+    case "SUBMITTED":
+    case "UPLOADED":
+    case "PENDING":
+    case "ASSIGNED":
+    case "READY_FOR_QA":
+      return "warning";
+    case "IN_PROGRESS":
+      return "info";
+    case "REVISION_REQUIRED":
+    case "CANCELLED":
+      return "error";
+    default:
+      return "neutral";
+  }
+}

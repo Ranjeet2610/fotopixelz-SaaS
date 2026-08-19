@@ -23,6 +23,20 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 0.625rem;
+
+  /* Direction D — additive brand/status tokens (docs/DESIGN-SYSTEM.md,
+     docs/CLIENT-DASHBOARD.md). These extend the existing shadcn token set
+     above rather than replacing any of it. */
+  --coral: oklch(0.665 0.199 33.5); /* Electric Coral #FF5A36 */
+  --coral-foreground: oklch(0.99 0.01 40);
+  --status-success: oklch(0.55 0.13 155);
+  --status-success-foreground: oklch(0.99 0.01 150);
+  --status-warning: oklch(0.62 0.14 65);
+  --status-warning-foreground: oklch(0.99 0.01 70);
+  --status-error: oklch(0.55 0.19 25);
+  --status-error-foreground: oklch(0.99 0.01 25);
+  --status-info: oklch(0.5 0.13 250);
+  --status-info-foreground: oklch(0.99 0.01 250);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +59,17 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+
+    --coral: oklch(0.665 0.199 33.5);
+    --coral-foreground: oklch(0.99 0.01 40);
+    --status-success: oklch(0.62 0.13 155);
+    --status-success-foreground: oklch(0.15 0.02 150);
+    --status-warning: oklch(0.68 0.13 65);
+    --status-warning-foreground: oklch(0.15 0.02 70);
+    --status-error: oklch(0.62 0.19 25);
+    --status-error-foreground: oklch(0.15 0.02 25);
+    --status-info: oklch(0.62 0.13 250);
+    --status-info-foreground: oklch(0.15 0.02 250);
   }
 }
 
@@ -73,6 +98,16 @@
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-coral: var(--coral);
+  --color-coral-foreground: var(--coral-foreground);
+  --color-status-success: var(--status-success);
+  --color-status-success-foreground: var(--status-success-foreground);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-foreground: var(--status-warning-foreground);
+  --color-status-error: var(--status-error);
+  --color-status-error-foreground: var(--status-error-foreground);
+  --color-status-info: var(--status-info);
+  --color-status-info-foreground: var(--status-info-foreground);
 }
 
 @layer base {
@@ -308,4 +343,20 @@
 .upload-gallery-loading {
   font-size: 0.875rem;
   color: var(--muted-foreground);
+}
+
+/* Direction D dashboard — placeholder treatment shown only where no real
+   upload/deliverable image exists yet. Never a stock photo; a clearly
+   abstract pattern (docs/CLIENT-DASHBOARD.md §6). */
+.dashboard-placeholder-thumb {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--muted);
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--foreground) 5%, transparent) 0px,
+    color-mix(in oklch, var(--foreground) 5%, transparent) 1px,
+    transparent 1px,
+    transparent 12px
+  );
 }

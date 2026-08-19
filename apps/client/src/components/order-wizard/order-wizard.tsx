@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useOrganization } from "@/components/organization-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,9 @@ function EmptyState({ title, description }: { title: string; description: string
 
 export function OrderWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedCategoryId = searchParams.get("categoryId");
+  const appliedDeepLinkRef = useRef(false);
   const { organization, loading: orgLoading } = useOrganization();
 
   const [step, setStep] = useState<WizardStep>(1);
@@ -185,6 +188,19 @@ export function OrderWizard() {
       void loadCategories();
     }
   }, [step, categories.length, loadCategories]);
+
+  useEffect(() => {
+    if (appliedDeepLinkRef.current || !requestedCategoryId || categories.length === 0) {
+      return;
+    }
+
+    const match = categories.find((category) => category.id === requestedCategoryId);
+    if (match) {
+      setCategoryId(match.id);
+      setCategoryName(match.name);
+    }
+    appliedDeepLinkRef.current = true;
+  }, [categories, requestedCategoryId]);
 
   useEffect(() => {
     if (step === 2) {
