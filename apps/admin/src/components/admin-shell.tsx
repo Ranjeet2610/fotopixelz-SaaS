@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
 import { canAccessAdminPath, getAdminNavGroups, isInternalRole } from "@/lib/access-control";
 import { useAuth } from "./auth-provider";
 import { Button, LoadingBlock } from "./ui";
@@ -13,7 +12,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   useEffect(() => {
     if (loading) {
@@ -51,59 +51,74 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="admin-layout">
-      <aside className={`admin-sidebar ${sidebarOpen ? "is-open" : ""}`}>
-        <div className="sidebar-brand">
-          <span className="brand-mark">fotopixelz</span>
-          <span>Operations</span>
+      <Button
+        className="rail-mobile-toggle"
+        size="sm"
+        variant="secondary"
+        onClick={() => setRailOpen((value) => !value)}
+      >
+        Menu
+      </Button>
+
+      <aside className={`admin-rail ${railOpen ? "is-open" : ""}`}>
+        <div className="rail-brand" title="Fotopixelz Operations">
+          fp
         </div>
-        <nav className="sidebar-nav" aria-label="Operations navigation">
+
+        <nav className="rail-nav" aria-label="Operations navigation">
           {navGroups.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <p>{group.label}</p>
+            <div className="rail-group" key={group.label}>
               {group.items.map((item) => {
                 const itemPath = item.href.split("?")[0];
                 const active = pathname === itemPath || pathname.startsWith(`${itemPath}/`);
                 return (
                   <Link
-                    className={`nav-link ${active ? "is-active" : ""}`}
+                    className={`rail-item ${active ? "is-active" : ""}`}
                     href={item.href}
                     key={item.href}
-                    onClick={() => setSidebarOpen(false)}
+                    title={item.label}
+                    aria-label={item.label}
+                    onClick={() => setRailOpen(false)}
                   >
-                    <span className="nav-icon">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span aria-hidden>{item.icon}</span>
+                    <span className="rail-mobile-labels">{item.label}</span>
                   </Link>
                 );
               })}
             </div>
           ))}
         </nav>
-        <div className="sidebar-support">
-          <p>API</p>
-          <span>{API_BASE_URL}</span>
+
+        <div className="rail-account">
+          <button
+            type="button"
+            className="rail-item"
+            title={currentUser.name ?? currentUser.email}
+            aria-label="Account menu"
+            onClick={() => setAccountMenuOpen((value) => !value)}
+          >
+            {(currentUser.name ?? currentUser.email).slice(0, 1).toUpperCase()}
+          </button>
+          {accountMenuOpen ? (
+            <div className="rail-account-menu">
+              <strong>{currentUser.name ?? currentUser.email}</strong>
+              <span>{currentUser.role}</span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  void logout();
+                }}
+              >
+                Logout
+              </Button>
+            </div>
+          ) : null}
         </div>
       </aside>
 
       <div className="admin-main">
-        <header className="admin-topbar">
-          <Button className="mobile-menu-btn" size="sm" variant="secondary" onClick={() => setSidebarOpen((value) => !value)}>
-            Menu
-          </Button>
-          <div>
-            <p>Operations Dashboard</p>
-            <span>Live backend modules 1-8</span>
-          </div>
-          <div className="topbar-user">
-            <div className="avatar">{(currentUser.name ?? currentUser.email).slice(0, 1).toUpperCase()}</div>
-            <div>
-              <strong>{currentUser.name ?? currentUser.email}</strong>
-              <span>{currentUser.role}</span>
-            </div>
-            <Button size="sm" variant="secondary" onClick={logout}>
-              Logout
-            </Button>
-          </div>
-        </header>
         <main className="content-shell">{children}</main>
       </div>
     </div>

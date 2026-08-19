@@ -1,20 +1,15 @@
 "use client";
 
 import type { ButtonHTMLAttributes, FormEvent, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { Alert, Badge, Button as SharedButton, type BadgeStatus } from "@repo/ui";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger" | "ghost";
   size?: "sm" | "md";
 };
 
-export function Button({ variant = "primary", size = "md", className = "", ...props }: ButtonProps) {
-  return (
-    <button
-      className={`admin-btn admin-btn-${variant} admin-btn-${size} ${className}`}
-      type={props.type ?? "button"}
-      {...props}
-    />
-  );
+export function Button({ variant = "primary", size = "md", className, ...props }: ButtonProps) {
+  return <SharedButton variant={variant} size={size} className={className} {...props} />;
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -117,27 +112,65 @@ export function Modal({
   );
 }
 
+// Maps known status/role/health values to the shared Badge's semantic
+// buckets. Unlisted values (e.g. SUBMITTED, which has no prior explicit
+// rule) fall back to "neutral" rather than rendering unstyled.
+const STATUS_BUCKET: Record<string, BadgeStatus> = {
+  ACTIVE: "success",
+  ONLINE: "success",
+  DELIVERED: "success",
+  APPROVED: "success",
+  READY: "success",
+  PENDING: "warning",
+  DRAFT: "warning",
+  UPLOADED: "warning",
+  ASSIGNED: "warning",
+  PROCESSING: "warning",
+  READY_FOR_QA: "warning",
+  IN_PROGRESS: "info",
+  CLIENT: "info",
+  EDITOR: "info",
+  QA: "info",
+  FAILED: "error",
+  CANCELLED: "error",
+  DELETED: "error",
+  INACTIVE: "error",
+  CHECK_FAILED: "error",
+  REVISION_REQUIRED: "error",
+  ARCHIVED: "neutral",
+  UNKNOWN: "neutral",
+};
+
+export function getStatusBucket(value?: string | null): BadgeStatus {
+  const normalized = (value ?? "UNKNOWN").toUpperCase();
+  return STATUS_BUCKET[normalized] ?? "neutral";
+}
+
 export function StatusBadge({ value }: { value?: string | null }) {
   const normalized = (value ?? "UNKNOWN").toUpperCase();
-  return <span className={`status-badge status-${normalized.toLowerCase().replaceAll("_", "-")}`}>{normalized}</span>;
+  return <Badge status={getStatusBucket(normalized)}>{normalized}</Badge>;
 }
 
 export function RoleBadge({ value }: { value?: string | null }) {
-  return <span className="role-badge">{value ?? "UNKNOWN"}</span>;
+  return (
+    <Badge status="success" showDot={false}>
+      {value ?? "UNKNOWN"}
+    </Badge>
+  );
 }
 
 export function ErrorBanner({ message }: { message?: string | null }) {
   if (!message) {
     return null;
   }
-  return <div className="notice notice-error">{message}</div>;
+  return <Alert variant="error">{message}</Alert>;
 }
 
 export function SuccessBanner({ message }: { message?: string | null }) {
   if (!message) {
     return null;
   }
-  return <div className="notice notice-success">{message}</div>;
+  return <Alert variant="success">{message}</Alert>;
 }
 
 export function PermissionNotice() {

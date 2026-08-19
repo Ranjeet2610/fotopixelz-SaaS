@@ -7,6 +7,15 @@ export async function getUploadPreviewUrl(uploadId: string) {
   );
 }
 
+// For the dashboard's board-card thumbnails: the first real uploaded source
+// image for an order, if one exists yet (docs/ADMIN-DASHBOARD.md §6).
+export async function listOrderUploads(orderId: string) {
+  const result = await apiRequest<{ items: SourceUploadRecord[] }>("/uploads", {
+    query: { orderId, limit: 1, status: "UPLOADED" },
+  });
+  return result.items ?? [];
+}
+
 export async function downloadUpload(upload: SourceUploadRecord) {
   const { previewUrl } = await getUploadPreviewUrl(upload.id);
   const anchor = document.createElement("a");

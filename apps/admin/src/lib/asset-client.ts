@@ -107,6 +107,15 @@ export async function getAssetPreviewUrl(assetId: string) {
   return { previewUrl: result.downloadUrl };
 }
 
+// For the dashboard's Delivered-column board cards: the first real
+// deliverable for an order, if one exists (docs/ADMIN-DASHBOARD.md §6).
+export async function listOrderDeliverables(orderId: string) {
+  const result = await apiRequest<{ items: DeliverableRecord[] }>("/assets", {
+    query: { orderId, limit: 1, status: "DELIVERED" },
+  });
+  return result.items ?? [];
+}
+
 export async function downloadDeliverable(deliverable: DeliverableRecord) {
   const result = await apiRequest<{ downloadUrl: string }>(
     `/assets/${deliverable.id}/download-url`,
