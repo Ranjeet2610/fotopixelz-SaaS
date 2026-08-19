@@ -77,3 +77,137 @@ Package-local `README.md` files (e.g. `apps/web/README.md`, `apps/admin/README.m
 - **ADRs (`adr/`) are one decision per file, immutable once accepted.** A changed decision is recorded as a new ADR that explicitly supersedes the old one; the old one is never deleted or rewritten.
 - **File naming:** existing `FOTOPIXELZ_*_REPORT.md` naming is preserved for historical documents already in the repository. New reports going forward should follow the same `<AREA>_<TYPE>_REPORT.md` convention for consistency; new ADRs should follow `NNNN-short-title.md`.
 - **No document in this tree should contain secrets, credentials, or environment-specific values** (see `architecture/env.md` for the pattern of documenting variable names only).
+
+---
+
+## Documentation Terminology
+
+This applies to all documents in `docs/`, including the numbered root-level documents (`00-PRODUCT-OVERVIEW.md`, `01-ARCHITECTURE.md`, and further passes to follow).
+
+- **CURRENT** — actually implemented and verified in code. Not "a model/route/component exists" — verified to actually function.
+- **TARGET** — intended future behavior, established by project requirements (CLAUDE.md, planning docs, or explicit code comments stating intent). If no such source exists, state: *"Not established in current codebase."* Do not infer or invent target functionality.
+- **GAP** — the difference between CURRENT and TARGET for a given area.
+- **STATUS** values, used per feature/route/module:
+  - `COMPLETE` — implemented and functionally verified end-to-end.
+  - `PARTIAL` — implemented but missing meaningful functionality, or only partially verified.
+  - `STUB` — a route/component/file exists but contains placeholder content only (no real logic or API connection).
+  - `BROKEN` — implemented but verified not to work correctly.
+  - `NOT IMPLEMENTED` — no code exists for this yet.
+
+**Never call something `COMPLETE` merely because a route, component, or database model exists.** Verify the implementation actually does what it claims (real API calls, real data, real logic) before assigning `COMPLETE`.
+
+---
+
+## Master Documentation Index
+
+This index covers the root-level `docs/` documentation set produced across four documentation passes (product/architecture, modules/workflows, technical implementation, UI/UX/roadmap). It is separate from — and does not replace — the `planning/`, `reports/`, `architecture/`, `guides/`, and `testing/` subfolders indexed above.
+
+### PRODUCT
+- [00-PRODUCT-OVERVIEW.md](00-PRODUCT-OVERVIEW.md) — what Fotopixelz is, workflow, capabilities, maturity, limitations
+- [PRODUCT-STATUS.md](PRODUCT-STATUS.md) — current per-component status snapshot
+- [CURRENT-TARGET-GAP.md](CURRENT-TARGET-GAP.md) — master current/target/gap table across every area
+- [ROADMAP.md](ROADMAP.md) — phased development sequence (Admin → Client → Website → Backend → Advanced Processing → Production)
+- [DEFINITION-OF-DONE.md](DEFINITION-OF-DONE.md) — what "COMPLETE" actually requires
+
+### ARCHITECTURE
+- [01-ARCHITECTURE.md](01-ARCHITECTURE.md) — per-app architecture, system diagram, repo structure, tech stack, env/runtime
+- [architecture/architecture.md](architecture/architecture.md) — earlier living architecture reference (see note below)
+
+### ROLES
+- [02-ROLES-AND-PERMISSIONS.md](02-ROLES-AND-PERMISSIONS.md) — actual roles, the unused permission-group system, backend-vs-frontend enforcement matrix
+
+### MODULES
+- [03-AUTHENTICATION.md](03-AUTHENTICATION.md)
+- [04-USERS.md](04-USERS.md)
+- [05-ORGANIZATIONS.md](05-ORGANIZATIONS.md)
+- [06-CATALOG-AND-SERVICES.md](06-CATALOG-AND-SERVICES.md)
+- [07-PRICING.md](07-PRICING.md)
+- [08-ORDERS.md](08-ORDERS.md) — includes the order state machine (Mermaid diagram)
+- [09-UPLOADS.md](09-UPLOADS.md)
+- [10-ASSETS.md](10-ASSETS.md)
+- [11-EDITING-WORKFLOW.md](11-EDITING-WORKFLOW.md) — stub module; real capability lives in Orders
+- [12-QA.md](12-QA.md) — stub module; real capability lives in Orders
+- [13-REVISIONS.md](13-REVISIONS.md) — stub module; real capability lives in Orders
+- [14-PAYMENTS-AND-BILLING.md](14-PAYMENTS-AND-BILLING.md) — stub
+- [15-ADMIN.md](15-ADMIN.md)
+- [16-NOTIFICATIONS.md](16-NOTIFICATIONS.md) — email real, in-app notifications unreadable
+- [17-ANALYTICS.md](17-ANALYTICS.md) — stub
+- [18-AI.md](18-AI.md) — stub
+- [19-WORKERS-AND-JOBS.md](19-WORKERS-AND-JOBS.md) — stub, no real consumer
+- [MODULE-MATRIX.md](MODULE-MATRIX.md) — master per-module matrix (app/frontend/backend/API/DB/UI/status)
+
+### WORKFLOWS
+- [25-PRODUCT-WORKFLOWS.md](25-PRODUCT-WORKFLOWS.md) — 18 end-to-end product workflows, CURRENT vs TARGET vs GAP
+
+### API
+- [26-API.md](26-API.md) — full route-level inventory, grouped by module
+- [architecture/api.md](architecture/api.md) — earlier living API reference (see note below)
+
+### DATABASE
+- [27-DATABASE.md](27-DATABASE.md) — every model, ER diagram, unused/dead schema findings
+
+### SECURITY
+- [28-SECURITY.md](28-SECURITY.md) — auth/session/OAuth/token/CORS/validation findings and known risks
+- [29-ERROR-HANDLING.md](29-ERROR-HANDLING.md) — API/validation/upload/database/frontend error patterns
+
+### UI/UX
+> **⚠️ Strategy change:** the incremental design-token migration (Admin Stage 1–3) has been stopped by decision. Fotopixelz is now pursuing a **ground-up UI/UX redesign** — see `docs/24-UI-UX.md`'s strategy-change notice. `DESIGN-SYSTEM.md`'s tokens/primitives are provisional inputs, not the final system.
+
+- [REDESIGN-DIRECTION.md](REDESIGN-DIRECTION.md) — **the current UI/UX direction.** Vision and principles for the ground-up redesign: functional foundation to preserve, Pixelz-caliber quality benchmark (without copying it), per-application direction, and what's still open. Read this first for UI/UX work.
+- [CLIENT-DASHBOARD.md](CLIENT-DASHBOARD.md) — **approved, build-ready spec.** Final Client Dashboard design (Direction D v2): information architecture, every component, real CURRENT data per component, TARGET data honestly marked, responsive/empty/loading/error/hover behavior.
+- [ADMIN-DASHBOARD.md](ADMIN-DASHBOARD.md) — **approved, build-ready spec.** Final Admin Dashboard design (Direction D v2, production-board layout): same structure as the Client spec, admin-specific components and data.
+- [24-UI-UX.md](24-UI-UX.md) — per-app current state + strategy-change notice + prior creative-direction input that `REDESIGN-DIRECTION.md` extends
+- [UI-REVIEW.md](UI-REVIEW.md) — KEEP/IMPROVE/REDESIGN per page; the FUNCTIONALITY TO KEEP column remains authoritative, the visual verdicts are superseded (treat all as REDESIGN now)
+- [DESIGN-SYSTEM.md](DESIGN-SYSTEM.md) — **superseded/provisional.** Prior design-token system (Geist/Geist Mono/Instrument Serif, Electric Coral `#FF5A36`, `packages/ui` primitives) — retained as an input to the ground-up redesign (see `REDESIGN-DIRECTION.md` §7), not the final visual language.
+
+### TESTING
+- [30-TESTING.md](30-TESTING.md) — confirms zero automated tests exist anywhere in the repository
+
+### DEPLOYMENT
+- [31-DEPLOYMENT.md](31-DEPLOYMENT.md) — dev commands, Docker Compose, ports, env variable names by group
+- [TECHNICAL-MATRIX.md](TECHNICAL-MATRIX.md) — code/API/DB/integration/tests/status per component
+
+**Note on overlap with `architecture/`:** `architecture/architecture.md`, `architecture/api.md`, and `architecture/env.md` predate this numbered documentation set and are lighter-weight living references. Where they conflict with the numbered `docs/00`–`docs/31` set (which was produced by direct, exhaustive code inspection across four passes), **the numbered set is authoritative** — it supersedes `architecture/architecture.md`'s older content (e.g. that document still describes some modules as "placeholders" that are now confirmed real, and vice versa for modules confirmed still-stub). `architecture/env.md` remains the authoritative *variable-by-variable* reference with descriptions; `docs/31-DEPLOYMENT.md`'s environment section is grouped/summary-level and defers to it for detail.
+
+---
+
+## Claude Development Workflow
+
+This is the permanent workflow for any implementation work on Fotopixelz, by Claude or any engineer, going forward:
+
+1. **Identify application** — which of `apps/web`, `apps/client`, `apps/admin`, `services/api`, `apps/workers` does this task touch?
+2. **Identify module** — which module doc (`docs/03`–`docs/19`) covers this area?
+3. **Read relevant documentation** — the specific module doc(s), not just this index.
+4. **Read architecture** — `docs/01-ARCHITECTURE.md` for how the module fits the wider system.
+5. **Check CURRENT** — what actually exists today, per the module doc and `docs/MODULE-MATRIX.md`/`docs/TECHNICAL-MATRIX.md`.
+6. **Check TARGET** — what's actually established as intended direction (not invented) — `docs/CURRENT-TARGET-GAP.md`, `docs/ROADMAP.md`.
+7. **Identify GAP** — the specific, scoped difference between CURRENT and TARGET relevant to the requested task.
+8. **Preserve existing working functionality** — anything marked KEEP in `docs/UI-REVIEW.md` or COMPLETE in the module docs must not be rewritten without a stated reason.
+9. **Implement only requested scope** — do not expand into adjacent modules or unrelated cleanup.
+10. **Validate** — typecheck/lint/manual verification appropriate to the change, per CLAUDE.md's existing project standards.
+11. **Update documentation** — the relevant module doc, matrix rows, and `docs/PRODUCT-STATUS.md` should reflect the new CURRENT state before the task is considered finished.
+12. **Continue to next module** — following the Sequential Development Rule below, not jumping ahead.
+
+**Never treat TARGET as CURRENT.** **Never rewrite working functionality without reason.** **Never perform broad, unrelated refactors** under cover of a scoped task.
+
+---
+
+## Sequential Development Rule
+
+Fotopixelz is being completed **sequentially**, per `docs/ROADMAP.md`:
+
+```
+ADMIN
+  ↓
+CLIENT
+  ↓
+MAIN WEBSITE
+  ↓
+BACKEND / PRODUCT GAPS
+  ↓
+ADVANCED PROCESSING (Payments / Editing / QA / Revisions / AI / Workers)
+  ↓
+PRODUCTION (Testing / Security / Performance / Deployment)
+```
+
+Do not jump randomly between applications or phases. Explicit cross-phase dependencies (e.g. Client billing UI depending on Phase 5's payments backend) are called out in `docs/ROADMAP.md` and are the only sanctioned exceptions to strict sequencing.
