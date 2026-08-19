@@ -4,15 +4,32 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm -r --parallel run dev",
+    "dev:client": "pnpm --filter client run dev",
+    "dev:admin": "pnpm --filter admin run dev",
+    "dev:api": "pnpm --filter api run dev",
+    "dev:workers": "pnpm --filter workers run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "db:cleanup-empty-orgs": "tsx prisma/scripts/cleanup-empty-organizations.ts",
+    "db:cleanup-empty-orgs:execute": "tsx prisma/scripts/cleanup-empty-organizations.ts --execute",
+    "db:repair-deliverables": "tsx prisma/scripts/repair-deliverable-is-current.ts",
+    "db:repair-deliverables:execute": "tsx prisma/scripts/repair-deliverable-is-current.ts --execute"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "packageManager": "pnpm@11.4.0",
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "^11.4.0",
+      "version": "11.4.0",
       "onFail": "download"
     }
   },

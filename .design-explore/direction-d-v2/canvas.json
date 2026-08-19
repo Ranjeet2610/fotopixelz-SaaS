@@ -1,0 +1,11 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1160, "title": "Client Dashboard — Direction D v2" },
+    { "file": "AdminD.dc.html", "x": 1520, "y": 0, "w": 1520, "h": 1080, "title": "Admin Dashboard — Direction D v2" }
+  ],
+  "annotations": [
+    { "id": "note-client-v2", "x": 0, "y": -220, "w": 560, "text": "CLIENT V2 — same IA, image-forward composition\nHero production card (image fills the card, status overlays ON the image, not beside it) + an \"up next\" stack, then an image-led filmstrip with a discrete stage track (not a generic progress bar) instead of table rows. A proof-sheet grid for ready-to-download. The order log is kept but demoted to a quiet, small-thumbnail strip at the bottom — deliberate contrast against the vivid production area above it, not removed." },
+    { "id": "note-admin-v2", "x": 1520, "y": -220, "w": 560, "text": "ADMIN V2 — a real production board, not a table\nUnassigned orders as an intake strip with thumbnails, then a kanban-style board with one column per real status (In progress / Ready for QA / Revision / Delivered) — each card carries its image. This is the core structural change from V1: admin now visually reads as a production workflow, not a list of database rows. Workload/customer/insights kept compact in the sidebar; the dashed Insights panel still states plainly what isn't built." }
+  ],
+  "launch": { "view": "canvas" }
+}

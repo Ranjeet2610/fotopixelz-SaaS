@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1024, "title": "A — Gallery-Forward" },
+    { "file": "OptionB.dc.html", "x": 1520, "y": 0, "w": 1440, "h": 1024, "title": "B — Timeline-Forward" },
+    { "file": "OptionC.dc.html", "x": 3040, "y": 0, "w": 1440, "h": 1024, "title": "C — Editorial Hybrid" }
+  ],
+  "annotations": [
+    { "id": "note-a", "x": 0, "y": -170, "w": 460, "text": "OPTION A — Gallery-Forward\nImagery leads: a spotlight order with a large thumbnail, then a 4-up card grid where every order carries a placeholder image first, metadata second. Closest to the image-first principle, most visually distinct from a generic SaaS dashboard.\n\nTradeoff: with no real photos yet, the placeholder tiles are doing a lot of visual work — this direction depends most on real imagery arriving to reach its full effect." },
+    { "id": "note-b", "x": 1520, "y": -170, "w": 460, "text": "OPTION B — Timeline-Forward\nStatus leads: a production-pipeline strip shows counts per stage, orders render as compact rows with an inline progress bar instead of a thumbnail. Strongest 'what's happening right now' trust signal; scales well to many orders.\n\nTradeoff: least image-first of the three — closest in spirit to the old admin-style density, just better executed. Good fit if the customer's real priority is status clarity over visual browsing." },
+    { "id": "note-c", "x": 3040, "y": -170, "w": 460, "text": "OPTION C — Editorial Hybrid\nA dark, grain-textured header with a large Instrument Serif greeting sets an editorial tone, then settles into a refined list (not a grid) plus a spotlight card and compact stat/CTA panels on the right.\n\nTradeoff: the most 'premium brand' feeling of the three, but the header is the boldest structural departure — worth checking it doesn't read as a marketing-page hero bleeding into product UI." }
+  ],
+  "launch": { "view": "canvas" }
+}

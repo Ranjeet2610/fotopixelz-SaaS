@@ -1,0 +1,38 @@
+# Environment Variables
+
+## Core
+- `NODE_ENV`
+- `PORT`
+- `DATABASE_URL`
+
+## App URLs
+- `WEB_APP_URL`
+- `ADMIN_APP_URL`
+- `API_BASE_URL`
+
+## Auth / RBAC
+- `JWT_ACCESS_SECRET`
+- `JWT_REFRESH_SECRET`
+- `JWT_ACCESS_TTL`
+- `JWT_REFRESH_TTL`
+- `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+
+## Queue / Cache
+- `REDIS_URL`
+
+## Payments
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+
+## Storage
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+## Email
+- `RESEND_API_KEY`
+
+## Observability (planned)
+- `LOG_LEVEL`
+- `SENTRY_DSN`

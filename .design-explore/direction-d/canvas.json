@@ -1,0 +1,11 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 1040, "title": "Client Dashboard — Direction D" },
+    { "file": "AdminD.dc.html", "x": 1520, "y": 0, "w": 1440, "h": 1060, "title": "Admin Dashboard — Direction D" }
+  ],
+  "annotations": [
+    { "id": "note-client", "x": 0, "y": -190, "w": 520, "text": "CLIENT — \"What is happening with my image production?\"\nAccount strip (credits/trial/currency) → Active production (precise status, real-style thumbnails, honest due-date-or-none) → Ready to download → Recent orders log. Billing/specs/support are honest links, not fabricated working widgets — billing and support have no built dashboard experience yet." },
+    { "id": "note-admin", "x": 1520, "y": -190, "w": 520, "text": "ADMIN — \"What requires my operational attention?\"\nUnassigned queue leads, then status-breakdown counts, revisions, deliveries, workload and customer activity. The dashed \"Insights\" panel is deliberate: it names what's NOT built (SLA tracking, trend analytics) instead of faking it — no computed at-risk indicator or approval score anywhere on this screen." }
+  ],
+  "launch": { "view": "canvas" }
+}

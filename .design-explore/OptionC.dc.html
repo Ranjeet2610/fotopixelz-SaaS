@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    :root {
+      --ink: #1c1917; --ink-soft: #6b6459; --bg: #faf9f6;
+      --surface: #ffffff; --surface-tint: #f3f1ec; --line: #e7e2da;
+      --coral: #ff5a36; --success: #1e8e5a; --warning: #b5720a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); font-family: Geist, ui-sans-serif, system-ui, -apple-system, sans-serif; color: var(--ink); }
+    .serif { font-family: "Instrument Serif", Georgia, "Times New Roman", serif; font-style: italic; }
+    .mono { font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+    a { color: var(--coral); text-decoration:none; }
+    .grain {
+      background-image: radial-gradient(rgba(28,25,23,0.06) 1px, transparent 1px);
+      background-size: 5px 5px;
+    }
+    .btn-primary { display:inline-flex; align-items:center; gap:8px; height:42px; padding:0 20px; border-radius:8px; background:var(--coral); color:#fffaf7; font-size:14px; font-weight:500; }
+    .btn-ghost { display:inline-flex; align-items:center; height:42px; padding:0 18px; border-radius:8px; border:1px solid rgba(250,249,246,0.35); color:#fffaf7; font-size:14px; font-weight:500; }
+  </style>
+</helmet>
+<div style="width:1440px; min-height:1024px; background:var(--bg);">
+
+  <!-- Editorial header block -->
+  <div class="grain" style="background-color:#2b2723; padding:26px 40px 44px; position:relative; overflow:hidden;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:56px; position:relative; z-index:1;">
+      <div style="color:#fffaf7; font-size:15px; font-weight:700; letter-spacing:0.04em;">FOTOPIXELZ</div>
+      <div style="display:flex; align-items:center; gap:26px; font-size:14px; color:rgba(250,249,246,0.65);">
+        <span style="color:#fffaf7;">Overview</span>
+        <span>Orders</span>
+        <span>Assets</span>
+        <span>Billing</span>
+        <div style="width:34px; height:34px; border-radius:999px; background:rgba(250,249,246,0.15); color:#fffaf7; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">R</div>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; position:relative; z-index:1;">
+      <div>
+        <p class="serif" style="margin:0 0 6px; font-size:44px; color:#fffaf7; line-height:1.05;">Good afternoon, Ranjeet.</p>
+        <p style="margin:0; font-size:14px; color:rgba(250,249,246,0.6);">6 orders in motion · 148 images delivered this month</p>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div class="btn-ghost">Browse services</div>
+        <div class="btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New order
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 32px 40px 56px; display:grid; grid-template-columns: 1fr 320px; gap:28px;">
+
+    <div>
+      <!-- Spotlight -->
+      <div style="display:flex; gap:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden; margin-bottom:28px;">
+        <div style="width:280px; flex-shrink:0; background-color:#f0e3da; background-image: repeating-linear-gradient(135deg, rgba(28,25,23,0.05) 0px, rgba(28,25,23,0.05) 1px, transparent 1px, transparent 14px); position:relative;">
+          <div class="mono" style="position:absolute; bottom:12px; left:12px; background:rgba(28,25,23,0.85); color:#fff; font-size:11px; font-weight:600; padding:4px 9px; border-radius:6px;">4 / 12 uploaded</div>
+        </div>
+        <div style="flex:1; padding:22px 24px; display:flex; flex-direction:column; justify-content:center; gap:12px;">
+          <p class="mono" style="margin:0; font-size:12px; color:var(--ink-soft);">FP-2026-000041</p>
+          <p style="margin:0; font-size:19px; font-weight:600;">Spring Catalog Retouching</p>
+          <span style="display:inline-flex; width:fit-content; align-items:center; gap:6px; background:#fbf1e2; color:var(--warning); font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;">
+            <span style="width:6px;height:6px;border-radius:999px;background:currentColor;"></span> Awaiting upload
+          </span>
+          <div style="display:flex; gap:10px; margin-top:4px;">
+            <div class="btn-primary" style="height:36px; padding:0 16px; font-size:13px;">Continue upload</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Refined list -->
+      <p style="margin:0 0 12px; font-size:14px; font-weight:600;">All orders</p>
+      <div style="border-top:1px solid var(--line);">
+
+        <div style="display:grid; grid-template-columns: 44px 1fr 130px 90px 90px; align-items:center; gap:16px; padding:14px 4px; border-bottom:1px solid var(--line);">
+          <div style="width:40px;height:40px;border-radius:8px; background:#e7ece6;"></div>
+          <div>
+            <p style="margin:0; font-size:14px; font-weight:600;">Ghost Mannequin Batch 12</p>
+            <p style="margin:0; font-size:12px; color:var(--ink-soft);" class="mono">FP-2026-000039</p>
+          </div>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#2563ac;"><span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> In production</span>
+          <span style="font-size:13px; color:var(--ink-soft);">24 images</span>
+          <span class="mono" style="font-size:13px; text-align:right;">$66.00</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 44px 1fr 130px 90px 90px; align-items:center; gap:16px; padding:14px 4px; border-bottom:1px solid var(--line);">
+          <div style="width:40px;height:40px;border-radius:8px; background:#ece3ee;"></div>
+          <div>
+            <p style="margin:0; font-size:14px; font-weight:600;">Jewelry Hero Shots</p>
+            <p style="margin:0; font-size:12px; color:var(--ink-soft);" class="mono">FP-2026-000037</p>
+          </div>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--warning);"><span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> In review</span>
+          <span style="font-size:13px; color:var(--ink-soft);">8 images</span>
+          <span class="mono" style="font-size:13px; text-align:right;">$28.00</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 44px 1fr 130px 90px 90px; align-items:center; gap:16px; padding:14px 4px; border-bottom:1px solid var(--line);">
+          <div style="width:40px;height:40px;border-radius:8px; background:#e3e9ee;"></div>
+          <div>
+            <p style="margin:0; font-size:14px; font-weight:600;">Fall Lookbook — Wave 2</p>
+            <p style="margin:0; font-size:12px; color:var(--ink-soft);" class="mono">FP-2026-000031</p>
+          </div>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--success);"><span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> Delivered</span>
+          <span style="font-size:13px; color:var(--ink-soft);">40 images</span>
+          <span class="mono" style="font-size:13px; text-align:right;">$120.00</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 44px 1fr 130px 90px 90px; align-items:center; gap:16px; padding:14px 4px;">
+          <div style="width:40px;height:40px;border-radius:8px; background:#f0e3da;"></div>
+          <div>
+            <p style="margin:0; font-size:14px; font-weight:600;">Product Cutouts — SKU 100-140</p>
+            <p style="margin:0; font-size:12px; color:var(--ink-soft);" class="mono">FP-2026-000028</p>
+          </div>
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#c0362c;"><span style="width:5px;height:5px;border-radius:999px;background:currentColor;"></span> Revision requested</span>
+          <span style="font-size:13px; color:var(--ink-soft);">41 images</span>
+          <span class="mono" style="font-size:13px; text-align:right;">$114.80</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px;">
+        <p style="margin:0 0 4px; font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em;">Demo trial</p>
+        <p class="serif" style="margin:0 0 12px; font-size:26px;">9 days left</p>
+        <div style="height:6px; border-radius:999px; background:var(--surface-tint); overflow:hidden; margin-bottom:8px;"><div style="width:62%; height:100%; background:var(--coral);"></div></div>
+        <p style="margin:0; font-size:13px;" class="mono">31 / 50 credits used</p>
+      </div>
+
+      <div style="background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px;">
+        <p style="margin:0 0 14px; font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.05em;">Ready to download</p>
+        <div style="display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px; margin-bottom:12px;">
+          <div style="height:64px; border-radius:8px; background:#e7ece6;"></div>
+          <div style="height:64px; border-radius:8px; background:#f0e3da;"></div>
+          <div style="height:64px; border-radius:8px; background:#e3e9ee;"></div>
+          <div style="height:64px; border-radius:8px; background:#ece3ee;"></div>
+          <div style="height:64px; border-radius:8px; background:#f0e3da;"></div>
+          <div style="height:64px; border-radius:8px; border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--ink-soft);">+35</div>
+        </div>
+        <a href="#" style="font-size:13px;">Open assets →</a>
+      </div>
+
+      <div style="background:#2b2723; border-radius:12px; padding:20px;">
+        <p class="serif" style="margin:0 0 8px; font-size:20px; color:#fffaf7;">Need something new?</p>
+        <p style="margin:0 0 14px; font-size:13px; color:rgba(250,249,246,0.6);">Explore our full catalog of editing services.</p>
+        <div class="btn-ghost" style="height:38px; padding:0 16px; font-size:13px;">Browse services →</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
